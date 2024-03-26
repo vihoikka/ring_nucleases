@@ -1,9 +1,8 @@
-# crispr_type_iii_effector_finder
-A snakemake pipeline that characterises type III CRISPR-Cas loci and aims to discover new cOA dependent effectors. **Work in progress**.
-Requires Snakemake and Conda. All other dependencies are installed when running with the --use-conda option.
+# Ring nucleases, transcription factors and other accessory proteins for type III CRISPR-Cas loci
+This repo is initially based on another repo ([https://github.com/vihoikka/hoikkala_etal_typeIII_effectors](url)). Building on top of the effector finder repo, here we heavily modify the pipeline towards ring nuclease and other accessory proteins in type III loci
 
 Example run
-```snakemake --snakefile new_effectors.smk --use-conda --cores 40 --config protein_clustering="False" getGenomesBy="local" genome_mode="all" cas10_anchor="True" --rerun-triggers mtime```
+```snakemake --snakefile rn.smk --use-conda --cores 40 --config protein_clustering="False" getGenomesBy="local" genome_mode="all" cas10_anchor="True" --rerun-triggers mtime```
 
 ## The flow
 1. Obtains bacterial and archaeal genomes from local files (there's also a remote option if needed). Also creates annotation file to hold information on which acc number corresponds to bacteria and which to archaea
