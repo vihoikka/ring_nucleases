@@ -1,0 +1,9 @@
+.snakemake/
+scripts/*.png
+scripts/*test*
+scripts/*.tsv
+scripts/__pycache__/*
+*.annotation
+*.plot
+*.summary
+unknown_proteins_to_blast.fasta
