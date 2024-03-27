@@ -1,12 +1,16 @@
 '''
-This version focuses on finding new effectors by excluding known effectors.
-Unknown effector candidates are clustered and analyzed for conserved domains etc.
+This pipeline is focused in ring nucleases and transcription factors in type III CRISPR-Cas loci. 
+Built on top of new_effectors.smk from a previous project
 '''
 
-project = "test_170923"
+project = "run1"
 
-base_path = "/media/volume/st_andrews/new_effectors" + "/" + project
-program_root = "/home/ubuntu/st_andrews/new_effectors"
+thread_hogger = 50 #number of threads dedicated to a single thread-hogging rule. Meant for rules that do not rely on wildcards.
+thread_small = 5 #for wildcard tasks that benefit from multithreading
+thread_ultrasmall = 1 #for single-thread wildcard based rules
+
+base_path = "/home/vhoikkal/scratch/private/runs/ring_nucleases" + "/" + project
+program_root = "/home/vhoikkal/scratch/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder"
 
 cas10_cluster_threshold = 0.9 #initial Cas10 clustering threshold
 crispr_locus_interference_cutoff = 0 #cutoff for CRISPR loci interference completeness. Loci with less than this percentage of interference genes present are discarded
@@ -16,13 +20,21 @@ getGenomesBy = str(config["getGenomesBy"])
 cas10_anchor = config["cas10_anchor"]
 catyper_hmm_evalue = "1e-10"
 
-hmm_msa_folder = "/media/volume/st_andrews/databases/cATyper/hmm/sep23/profiles" #folder names within this folder are used for creating effector dictionary
-hmm_database_folder = "/media/volume/st_andrews/databases/cATyper/hmm/sep23/concatenated_profiles" #contains the concatenated and hmmpressed hmm profiles
+hmm_msa_folder = "/home/vhoikkal/scratch/private/databases/custom_hmm/known_type_iii_effectors/profiles" #folder names within this folder are used for creating effector dictionary
+hmm_database_folder = "/home/vhoikkal/scratch/private/databases/custom_hmm/known_type_iii_effectors/concatenated_profiles" #contains the concatenated and hmmpressed hmm profiles
 hmm_database_file = "all.hmm" #filename for the concatenated hmmpressed hmm profiles
 
-modified_cas10_hd = "/media/volume/st_andrews/new_effectors/manual_inputs/HD_HMM.msa" #modified cas10 hmm profile for hmmsearch
+modified_cas10_hd = "/home/vhoikkal/scratch/private/databases/custom_hmm/cas10/HD_HMM.msa" #modified cas10 hmm profile for hmmsearch
 
-temperature_data = "/media/volume/st_andrews/new_effectors/manual_inputs/200617_TEMPURA.csv"
+temperature_data = "/home/vhoikkal/scratch/private/databases/tempura/200617_TEMPURA.csv"
+
+
+genomes_folder = "/home/vhoikkal/scratch/private/databases/ncbi_genomes/bacteria/ncbi_dataset/data"
+archaea_folder = "/home/vhoikkal/scratch/private/databases/ncbi_genomes/archaea/ncbi_dataset/data"
+genome_count = 51920
+subsampling_seed = 666
+
+genomes_json = os.path.join(genomes_folder,"assembly_data_report.jsonl")
 
 if cas10_anchor == False:
     prefiltering_wildcards = "05_host_genomes"
@@ -355,15 +367,7 @@ group4_pfam_headers = "target_name\taccession\tquery_name\taccession\tE-value\ts
 print("Starting Cas10/CorA pipeline. Configs:\nProtein clustering: "+ str(protein_clustering)+ "\n")
 
 rule all: 
-    input: base_path + "/done"
-
-
-genomes_folder = "/media/volume/st_andrews/databases/ncbi_genomes/ncbi_dataset/data" #"/media/volume/st_andrews/cas10_corA/genomes/bacteria/ncbi_dataset/data"
-archaea_folder = "/media/volume/st_andrews/cas10_corA/genomes/archaea/ncbi_dataset/data"
-genome_count = 51920
-subsampling_seed = 666
-
-genomes_json = os.path.join(genomes_folder,"assembly_data_report.jsonl")
+    input: base_path + "/01_genomelist/annotated_genomelist.csv" #base_path + "/done"
 
 
 rule write_down_genome_info:
@@ -371,6 +375,7 @@ rule write_down_genome_info:
     Outputs a text file genome names based on folders in genomes_folders
     '''
     output: base_path + "/01_genomelist/genomelist.txt"
+    threads: thread_ultrasmall
     shell:
         """
         cd {genomes_folder}
@@ -394,6 +399,7 @@ rule annotate_bacteria_and_archaea_domains:
     params: 
         archaea_csv = base_path + "/01_genomelist/archaea.csv",
         bacteria_csv = base_path + "/01_genomelist/bacteria.csv"
+    threads: thread_ultrasmall
     shell:
         """
         cd {archaea_folder}
@@ -417,6 +423,7 @@ if getGenomesBy == "local":
             genome_info = rules.write_down_genome_info.output,
             domain_annotations = rules.annotate_bacteria_and_archaea_domains.output
         output: directory(base_path + "/" + prefiltering_wildcards)
+        threads: thread_hogger
         run:
             import pandas as pd
             if not os.path.exists(str(output)):
@@ -479,7 +486,7 @@ if getGenomesBy == "local":
         params: #these are mostly deprecated
             folder = base_path + "/" + prefiltering_host_genomes,
         conda: "envs/ncbidownload.yaml"
-        #threads: 4
+        threads: thread_ultrasmall
         log:
             out = base_path + "/logs/" + prefiltering_host_genomes + "/{i}.log",
             err = base_path + "/logs/" + prefiltering_host_genomes + "/{i}.err"
@@ -502,8 +509,9 @@ elif getGenomesBy == "remote":
         output: directory(base_path + "/" + prefiltering_host_genomes)
         conda: "envs/ncbidownload.yaml"
         params:
-            parallels = "40",
+            parallels = thread_hogger,
             folder = base_path + "/06_host_genomes"
+        threads: thread_ultrasmall
         shell:
             '''
             mkdir -p {params.folder}
@@ -555,6 +563,7 @@ if cas10_anchor == True: #if we filter analyzable genomes by the presence of Cas
             headers = base_path + "/062_genomes_cas10/{i}/{i}_headers.out",
             all_data = base_path + "/062_genomes_cas10/{i}/{i}_all_data.out",
         conda: "envs/hmmer.yaml"
+        threads: thread_ultrasmall
         shell:
             '''
             echo "Running rule Cas10_genomes"
@@ -562,7 +571,7 @@ if cas10_anchor == True: #if we filter analyzable genomes by the presence of Cas
             if [ -s "{input.proteins}" ]; then
                 cat {input.proteins} | seqkit seq -m 500 > {params.proteins_filt}
                 if [ -s "{params.proteins_filt}" ]; then
-                    hmmscan --domtblout {params.out} --cpu 1 -E {corA_hmm_value} {params.cas10_db} {params.proteins_filt}  &> /dev/null
+                    hmmscan --domtblout {params.out} --cpu {threads} -E {corA_hmm_value} {params.cas10_db} {params.proteins_filt}  &> /dev/null
                     grep -v "#" {params.out} > {params.rows}||:
                     head -1 {params.rows} > {params.rows1}
                     echo "id,cas10_boolean,cas10_acc" > {output.boolean}
@@ -588,6 +597,7 @@ if cas10_anchor == True: #if we filter analyzable genomes by the presence of Cas
             boolean = rules.Cas10_genomes.output.boolean,
             proteins = base_path + "/" + prefiltering_host_genomes + "/{i}/{i}_proteins.faa"
         output: base_path + "/063_cas10_seq/{i}/{i}_cas10.faa"
+        threads: thread_ultrasmall
         shell: 
             '''
             CAS10_ID=$(awk -F ',' '{{print $3}}' {input.boolean})
@@ -614,7 +624,7 @@ if cas10_anchor == True: #if we filter analyzable genomes by the presence of Cas
             reps = base_path + "/064_cas10_clusters/cas10_unique_genomes.txt",
         params:
             clusterlines = base_path + "/064_cas10_clusters/clusterlines.txt"
-        threads: 40
+        threads: thread_hogger
         shell:
             '''
             echo "concatenating cas10 sequences for clustering"
@@ -631,6 +641,7 @@ if cas10_anchor == True: #if we filter analyzable genomes by the presence of Cas
         input:
             genomes = rules.concat_cluster_cas10_proteins.output.reps
         output: directory(base_path + "/03_postfiltering_genome_wildcards")
+        threads: thread_ultrasmall
         run:
             print("Expanding host list to wildcards...")
 
@@ -667,7 +678,7 @@ if cas10_anchor == True: #if we filter analyzable genomes by the presence of Cas
             original_prot = base_path + "/06_host_genomes/{j}/protein.faa",#for checking successful download
             original_gff = base_path + "/06_host_genomes/{j}/genomic.gff", #for checking successful download
         conda: "envs/ncbidownload.yaml"
-        #threads: 4
+        threads: thread_ultrasmall
         log:
             out = base_path + "/logs/06_host_genomes/{j}.log",
             err = base_path + "/logs/06_host_genomes/{j}.err"
@@ -682,6 +693,7 @@ rule getTaxInfo:
     input: base_path + "/03_postfiltering_genome_wildcards/{j}.txt"
     output:
         taxon = base_path + "/06_host_genomes/{j}/{j}_taxon.txt"
+    threads: thread_ultrasmall
     run:
         import pandas as pd
         json_df = pd.read_json(genomes_json, lines=True)
@@ -703,6 +715,7 @@ rule getTaxInfo:
 rule concat_taxInfo:
     input: aggregate_taxInfo
     output: base_path + "/06_host_genomes/taxInfo.txt"
+    threads: thread_small
     shell:
         """
         echo "Sample\tgenus\tspecies\n" > {output}
@@ -722,6 +735,7 @@ rule CRISPRCasTyper:
     log: base_path + "/logs/07_cctyper/{j}/{j}_cctyper.log"
     params:
         outdir = base_path + "/07_cctyper/{j}"
+    threads: thread_ultrasmall
     shell:
         '''
         rm -rf {params.outdir}
@@ -738,6 +752,7 @@ rule CRISPRCasTyper_rename:
     output: base_path + "/07_cctyper/{j}/{j}_renaming.done"
     params:
         outdir = base_path + "/07_cctyper/{j}"
+    threads: thread_ultrasmall
     shell:
         '''
         if test -e "{params.outdir}/CRISPR_Cas.tab";then
@@ -756,6 +771,7 @@ rule concat_renamed_crisprs:
     '''
     input: aggregate_renamed
     output: base_path + "/07_cctyper/renaming.done"
+    threads: thread_ultrasmall
     shell:
         '''
         touch {output}
@@ -775,6 +791,7 @@ checkpoint type_iii_wildcarder:
     params:
         interference_cutoff = crispr_locus_interference_cutoff, #0-100. If the interference score is lower than this, the locus is discarded
         cctyper_folder = base_path + "/07_cctyper",
+    threads: thread_ultrasmall
     shell:
         '''
         python3 scripts/loci_wildcarder.py --input_folder {params.cctyper_folder} --output_folder {output} --interference_cutoff {params.interference_cutoff}
@@ -804,11 +821,12 @@ rule cATyper_hmm_search:
     log:
         out = base_path + "/10_cATyper_hmm/logs/{c}.out",
         err = base_path + "/10_cATyper_hmm/logs/{c}.err",
+    threads: thread_small
     shell:
         '''
         python scripts/catyper_prepper_10.py --locus {wildcards.c} --cas_operons_file {input.crispr_positive_samples} --output_folder {params.outdir} --host_genomes_folder {params.host_genomes_folder} --mode pre_hmm 2> {log.err} 1> {log.out}
         echo "Running hmmscan" >> {log.out}
-        hmmscan --domtblout {params.temp_hmm} --cpu 8 -E {catyper_hmm_evalue} {params.hmm_profile} {output.contig_proteins}  &> /dev/null
+        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {catyper_hmm_evalue} {params.hmm_profile} {output.contig_proteins}  &> /dev/null
         echo "Removing commented rows" >> {log.out}
         grep -v "^#" {params.temp_hmm} > {output.temp_rows} ||:
         echo "Writing header" >> {log.out}
@@ -827,6 +845,7 @@ rule cATyper_hmm_search:
 rule concatenate_cATyper_hmm:
     input: aggregate_cATyper_hmm
     output: base_path + "/10_cATyper_hmm/cATyper_all.tsv"
+    threads: thread_ultrasmall
     shell:
         """
         awk '(NR == 1) || (FNR > 1)' {input} > {output}
@@ -856,6 +875,7 @@ rule cATyper_analysis:
     log:
         out = base_path + "/11_cATyper_analysis/logs/{c}.out",
         err = base_path + "/11_cATyper_analysis/logs/{c}.err",
+    threads: thread_ultrasmall
     shell:
         '''
         echo "Running cATyper analysis" >> {log.out}
@@ -867,6 +887,7 @@ rule cATyper_analysis:
 rule concatenate_cATyper_analysis:
     input: aggregate_cATyper_analysis
     output: base_path + "/11_cATyper_analysis/cATyper_all.tsv"
+    threads: thread_ultrasmall
     shell:
         """
         awk '(NR == 1) || (FNR > 1)' {base_path}/11_cATyper_analysis/*/*_cATyper_results.tsv > {output}
@@ -883,6 +904,7 @@ rule concatenate_cATyper_analysis_effector_scores:
     output:
         protein_to_effector_concatenated = base_path + "/11_cATyper_analysis/cATyper_protein_to_effector.tsv",
         effector_to_protein_concatenated = base_path + "/11_cATyper_analysis/cATyper_effector_to_protein.tsv",
+    threads: thread_small
     shell:
         '''
         cat {input.protein_to_effector} > {output.protein_to_effector_concatenated}
@@ -902,6 +924,7 @@ rule analyse_cATyper_effector_scores:
         #effector_scores_plot1 = base_path + "/11_cATyper_analysis/cATyper_effector_scores_plot1.png",
     params:
         outdir = base_path + "/11_cATyper_analysis"
+    threads: thread_hogger
     shell:
         '''
         python scripts/catyper_effector_scores.py --pte {input.pte} --etp {input.etp} --output {output.effector_scores} --output_summary {output.effector_scores_summary} --outdir {params.outdir}
@@ -921,6 +944,7 @@ checkpoint effector_wildcarder:
         hmm_targets = base_path + "/40_known_effector_wildcards/alltargets.txt",
         hmm_msa_folder = hmm_msa_folder,
         outdir = base_path + "/40_known_effector_wildcards",
+    threads: thread_small
     run:
         import glob
         #Equivalent of `mkdir`
@@ -953,6 +977,7 @@ rule effector_fetcher:
         catyper_done = rules.concatenate_cATyper_analysis.output, #this indicates we can safely probe the folders for effector sequences
     output:
         multifasta = base_path + "/41_known_effector_mf/{effector}.faa",
+    threads: thread_ultrasmall
     shell:
         '''
         effector_name={wildcards.effector}
@@ -973,6 +998,7 @@ rule effector_hmmer:
         #filtered_hmm_tsv = base_path + "/42_effector_hmmer/{effector}.tsv",
     params:
         base_path = base_path + "/42_effector_hmmer",
+    threads: thread_small
     shell:
         '''
         python3 scripts/effector_hmmer.py --input {input.multifasta} --output_basepath {params.base_path} --effector {wildcards.effector}
@@ -995,7 +1021,7 @@ rule cATyper_hmm_search_hhsuite_pdb:
         pdb70 = "/media/volume/st_andrews/databases/pdb/pdb70",
         pdb30 = "/media/volume/st_andrews/databases/pdb30/pdb30",
     conda: "envs/hhsuite.yaml"
-    threads: 40
+    threads: thread_small
     log:
         out = base_path + "/42_effector_hhsuite/logs/{effector}.out",
         err = base_path + "/42_effector_hhsuite/logs/{effector}.err",
@@ -1012,6 +1038,7 @@ rule parse_hhsuite:
     input: rules.cATyper_hmm_search_hhsuite_pdb.output.hhsuite_concat
     output: base_path + "/42_effector_hhsuite/{effector}/{effector}_hhsuite_parsed.tsv"
     conda: "envs/hhsuite.yaml"
+    threads: thread_small
     params:
         database = "PDB"
     shell:
@@ -1022,6 +1049,7 @@ rule parse_hhsuite:
 rule concatenate_cATyper_hmm_hhsuite:
     input: aggregate_cATyper_hhsuite_parser
     output: base_path + "/42_effector_hhsuite/cATyper_all.tsv"
+    threads: thread_small
     shell:
         """
         awk '(NR == 1) || (FNR > 1)' {input} > {output}
@@ -1043,7 +1071,7 @@ rule cATyper_hmm_search_hhsuite_cog:
         outdir = base_path + "/42_effector_hhsuite_cogs/{effector}",
         cogs = "/media/volume/st_andrews/databases/cog/COG_KOG/COG_KOG",
     conda: "envs/hhsuite.yaml"
-    threads: 40
+    threads: thread_small
     log:
         out = base_path + "/42_effector_hhsuite_cogs/logs/{effector}.out",
         err = base_path + "/42_effector_hhsuite_cogs/logs/{effector}.err",
@@ -1060,6 +1088,7 @@ rule parse_hhsuite_cogs:
     params:
         database = "COGs",
         mapping = "/media/volume/st_andrews/databases/cog/COG_KOG/cog-20.def.tab"
+    threads: thread_small
     shell:
         '''
         python3 scripts/hhsuite_parser.py --infile {input} --outfile {output} --database {params.database} --mapping {params.mapping}
@@ -1068,6 +1097,7 @@ rule parse_hhsuite_cogs:
 rule concatenate_cATyper_hmm_hhsuite_cogs:
     input: aggregate_cATyper_hhsuite_parser_cogs
     output: base_path + "/42_effector_hhsuite_cogs/cATyper_all_hmm_cogs.tsv"
+    threads: thread_small
     shell:
         """
         awk '(NR == 1) || (FNR > 1)' {input} > {output}
@@ -1089,6 +1119,7 @@ rule effector_analyse_domains:
     params:
         base_path = base_path + "/43_effector_hmmer_analysis",
         effector_locus_map = base_path + "/43_effector_hmmer_analysis/{effector}/{effector}.locus_map.tsv",
+    threads: thread_small
     shell:
         '''
         cat {base_path}/11_cATyper_analysis/*/*_protein_to_effector.tsv | grep "{wildcards.effector}" > {params.effector_locus_map}
@@ -1102,7 +1133,7 @@ rule effector_align:
     log:
         out = base_path + "/44_effector_alignments/logs/{effector}.out",
         err = base_path + "/44_effector_alignments/logs/{effector}.err"
-    threads: 40
+    threads: thread_small
     shell:
         '''
         muscle -super5 "{input}" -output "{output}" -threads {threads} 2> {log.err} 1> {log.out} 
@@ -1113,6 +1144,7 @@ rule effector_tree:
     input: rules.effector_align.output
     output: base_path + "/45_effector_tree/{effector}_tree.txt",
     conda: "envs/trees.yaml"
+    threads: thread_small
     shell:
         '''
         FastTree -wag -gamma {input} > {output}
@@ -1125,6 +1157,7 @@ rule concatenate_effector_wildcards:
         annotations = aggregate_known_effector_annotations,
         checkpoint = aggregate_known_effector_wildcarder
     output: base_path + "/known_effectors_finished.txt"
+    threads: thread_small
     shell:
         '''
         cat {input} > {output}
@@ -1147,6 +1180,7 @@ checkpoint cora_neighbourhood_preparation:
         cora_multifasta = base_path + "/41_known_effector_mf/cora.faa", #multifasta for cora
         cora_tree = base_path + "/45_effector_tree/cora_tree.txt", #tree for cora
         protein_locus_map = base_path + "/43_effector_hmmer_analysis/cora/cora.locus_map.tsv" #tsv file with protein id linking it to its original locus
+    threads: thread_small
     run:
         import pandas as pd
         import shutil
@@ -1184,6 +1218,7 @@ rule blast_cora_associated_proteins_against_dbs:
         nrn_db = "/media/volume/st_andrews/databases/cora_neighbours/nrn.dmnd",
         samlyase_db = "/media/volume/st_andrews/databases/cora_neighbours/samlyase.dmnd",
     conda: "envs/diamond.yaml"
+    threads: thread_small
     shell:
         '''
         diamond blastp --db {params.dedd_db} --query {input} --out {output.dedd} --outfmt 6 --quiet
@@ -1206,6 +1241,7 @@ rule analyse_cora_associated_proteins_against_dbs:
         nrn = base_path + "/51_cora_neighbour_blast/{cora_locus}/nrn.tsv",
         samlyase = base_path + "/51_cora_neighbour_blast/{cora_locus}/samlyase.tsv",
     output: base_path + "/52_cora_neighbour_analysis/{cora_locus}/neighbourhood_results.tsv"
+    threads: thread_small
     params:
         outdir = base_path + "/52_cora_neighbour_analysis/{cora_locus}"
     shell:
@@ -1216,82 +1252,11 @@ rule analyse_cora_associated_proteins_against_dbs:
 rule concatenate_cora_neighbourhoods:
     input: aggregate_cora_neighbourhoods
     output: base_path + "/52_cora_neighbour_analysis/cora_neighbours.tsv"
+    threads: thread_small
     shell:
         '''
         awk '(NR == 1) || (FNR > 1)' {base_path}/52_cora_neighbour_analysis/*/neighbourhood_results.tsv > {output}
         '''
-
-# python3 catyper_effector_scores.py --pte "/media/volume/st_andrews/new_effectors/test_170923/11_cATyper_analysis/cATyper_protein_to_effector.tsv" --etp "/media/volume/st_andrews/new_effectors/test_170923/11_cATyper_analysis/cATyper_effector_to_protein.tsv" --output asdasd --output_summary test_summarised.out
-
-
-# rule cATyper_hmm:
-#     '''
-#     Looks at the CRISPR-Cas loci and determines which previously known effectors are present in the loci.
-
-#     Note that the same python script is used before and after the hmm run. The mode is set to "pre_hmm" before the hmm run, and "post_hmm" after the hmm run.
-
-#     Steps:
-#         1. Run catyper_prepper.py in pre_hmm mode. This script does the following:
-#             1. Get contig of current locus
-#             2. Use the gff file to extract names of proteins in that contig. Also extract their coordinates to a csv file.
-#             3. Create a new protein multifasta that contains said proteins
-#         2. Run hmmscan on the multifasta that came out from step 1 (contains only proteins from the contig of interest).
-#             This hmmscan uses the hmm profiles in variables hmm_database_folder and hmm_database_file
-#         Run catyper_prepper.py again, this time in post_hmm mode. This script does the following: 
-#             1. Create a dictionary of known proteins based on the established hmm profiles
-#             2. Go through the hmm hits and extract the coordinates from the csv file
-#             3. For each of the established effectors, mark down boolean values on whether an effector is in the vicinity of the CRISPR-Cas locus or not
-
-#     '''
-#     input:
-#         #this input is just for obtaining the wildcard. The sample name is derived from the wildcard
-#         crispr_positive_samples = base_path + "/071_cctyper_loci/{c}/cas_operons.tsv",
-#     output:
-#         contig_proteins = base_path + "/10_cATyper_hmm/{c}/{c}_contig_proteins.faa",
-#         catyper = base_path + "/10_cATyper_hmm/{c}/{c}_cATyper_results.tsv",
-#         cora = base_path + "/10_cATyper_hmm/{c}/CorA.faa",
-#         #unknown_proteins = base_path + "/10_cATyper_hmm/{c}/{c}_unknown_proteins.faa", #new in version 9
-#         hmm_targets = base_path + "/10_cATyper_hmm/{c}/{c}_cATyper_hmm_targets.tsv",    
-#         hmm_rows = base_path + "/10_cATyper_hmm/{c}/{c}_cATyper_hmm_rows.tsv",
-#         temp_rows = base_path + "/10_cATyper_hmm/{c}/{c}_temp_rows.out",
-#     params:
-#         outdir = base_path + "/10_cATyper_hmm/{c}",
-#         hmm_msa_folder = hmm_msa_folder,
-#         host_genomes_folder = base_path + "/06_host_genomes",
-#         hmm_profile = hmm_database_folder + "/" + hmm_database_file,
-#         temp_hmm = base_path + "/10_cATyper_hmm/{c}/{c}_temp.out",
-#         temp_rows = base_path + "/10_cATyper_hmm/{c}/{c}_temp_rows.out",
-#     conda: "envs/hmmer.yaml"
-#     log:
-#         out = base_path + "/10_cATyper_hmm/logs/{c}.out",
-#         err = base_path + "/10_cATyper_hmm/logs/{c}.err",
-#         out2 = base_path + "/10_cATyper_hmm/logs/{c}.out2",
-#         err2 = base_path + "/10_cATyper_hmm/logs/{c}.err2",
-#     shell:
-#         '''
-#         python scripts/catyper_prepper_10.py --locus {wildcards.c} --cas_operons_file {input.crispr_positive_samples} --output_folder {params.outdir} --host_genomes_folder {params.host_genomes_folder} --mode pre_hmm 2> {log.err} 1> {log.out}
-#         echo "Running hmmscan" >> {log.out}
-#         hmmscan --domtblout {params.temp_hmm} --cpu 8 -E {catyper_hmm_evalue} {params.hmm_profile} {output.contig_proteins}  &> /dev/null
-#         echo "Removing commented rows" >> {log.out}
-#         grep -v "#" {params.temp_hmm} > {output.temp_rows} ||:
-#         echo "Writing header" >> {log.out}
-#         echo -e 'target_name\taccession\ttlen\tquery_name\taccession\tqlen\tE-value_fullseq\tscore_fullseq\tbias_fullseq\t#_domain\tof_domain\tc-Evalue_domain\ti-Evalue_domain\tscore_domain\tbias_domain\t_hmm_from\thmm_to\t_ali_from\tali_to\tenv_from\tenv_to\tacc\tdescription' > {output.hmm_rows}
-#         echo "Checking if hits were found" >> {log.out}
-#         if [ -s {output.temp_rows} ]; then 
-#             echo "Hits found for {wildcards.c}" >> {log.out}
-#             cat {output.temp_rows} >> {output.hmm_rows}
-#         else
-#             echo "No hits found for {wildcards.c}" >> {log.out}
-#             touch {output.hmm_rows}
-#         fi
-
-#         echo "Listing targets" >> {log.out}
-#         ls {params.hmm_msa_folder}/*/*.hmm > {output.hmm_targets}
-
-#         echo "Running cATyper" >> {log.out}
-#         python scripts/catyper_prepper_10.py --locus {wildcards.c} --cas_operons_file {input.crispr_positive_samples} --output_folder {params.outdir} --host_genomes_folder {params.host_genomes_folder} --mode post_hmm --hmm_targets {output.hmm_targets} --hmm_rows {output.hmm_rows} --catyper_out {output.catyper}  2> {log.err2} 1> {log.out2}
-#         touch {output.cora}
-#         '''
 
 rule crispr_locus_proteins:
     '''
@@ -1305,6 +1270,7 @@ rule crispr_locus_proteins:
         output_folder = base_path + "/072_crispr_locus_proteins/{c}",
         locus = "{c}",
         host_genomes_folder = base_path + "/06_host_genomes",
+    threads: thread_ultrasmall
     run:
         import os
         import pandas as pd
@@ -1388,6 +1354,7 @@ rule aggregate_crispr_locus_proteins:
     '''
     input: aggregate_crispr_locus_proteins
     output: base_path + "/072_crispr_locus_proteins/crispr_locus_proteins_all.faa"
+    threads: thread_small
     shell:
         '''
         cat {input} > {output}
@@ -1421,6 +1388,7 @@ rule typeIII_characterizer:
     log:
         out = base_path + "/09_crispr_iii_CorA/logs/{c}.out",
         err = base_path + "/09_crispr_iii_CorA/logs/{c}.err"
+    threads: thread_ultrasmall
     shell:
         '''
         python3 scripts/type_iii_effector_finder_2.0_HD.py --locus_id {wildcards.c} --sample_folder {params.sample_folder} --this_folder {params.this_folder} --outputfolder {params.outputfolder} --cas_operons {input.cctyper} --info_out {output.info} --cctyper_path {params.cctyper_folder} 2> {log.err} 1> {log.out}
@@ -1516,6 +1484,7 @@ rule unknown_finder:
     log:
         out = base_path + "/30_unknown_effectors/logs/{c}.out",
         err = base_path + "/30_unknown_effectors/logs/{c}.err"
+    threads: thread_ultrasmall
     shell:
         '''
         pip freeze | grep tmhmm.py || pip install tmhmm.py
@@ -1529,6 +1498,7 @@ rule concatenate_unknowns:
     output:
         proteins = base_path + "/30_unknown_effectors/unknowns.faa",
         info = base_path + "/30_unknown_effectors/unknowns_info.tsv"
+    threads: thread_ultrasmall
     shell:
         '''
         find '{base_path}/30_unknown_effectors' -maxdepth 2 -type f -wholename '*/*_unknown_proteins.faa' -print0 | xargs -0 cat >> {output.proteins}
@@ -1543,6 +1513,7 @@ rule concatenate_unknowns_locus_info:
     input: aggregate_unknowns_locus_info
     output:
         info = base_path + "/30_unknown_effectors/unknowns_info_loci.tsv"
+    threads: thread_ultrasmall
     shell:
         '''
         echo "locus_id\tsample\tno_of_unknowns\tunknown_proteins" > {output.info}
@@ -1568,7 +1539,7 @@ rule cluster_unknowns:
         err = base_path + "/31_unknowns_cluster/logs/unknowns_cluster.err"
     params:
         cluster_cutoff = 0.4
-    threads: 40
+    threads: thread_hogger
     shell:
         '''
         cd-hit -i {input} -o {output.proteins} -c {params.cluster_cutoff} -n 2 -d 0 -M 16000 -T {threads}
@@ -1586,15 +1557,13 @@ rule concatenate_type_iii_info:
     output: base_path + "/09_crispr_iii_CorA/loci/type_iii_info.tsv"
     params:
         temp_out = base_path + "/09_crispr_iii_CorA/loci/temp.tsv" 
+    threads: thread_ultrasmall
     shell:
         '''
         echo "Cas10\tCas5\tCas7\tLocus\tSample\tCas10_GGDD\tCas10_GGDD_coord\tCas10_GGDD_seq\tCas10_GGDE\tCas10_GGDE_coord\tCas10_GGDE_seq\tCas10_GGED\tCas10_GGED_coord\tCas10_GGED_seq\tCas10_HD\tCas10_HD_list\tCas10_DH\tCas10_HD_coord\tCas10_DH_coord\tCas10_coord\tCas10_length\tSubtype\tcyclase_literal" > {params.temp_out}
         find '{base_path}/09_crispr_iii_CorA/loci' -maxdepth 2 -type f -wholename '*/*_crispr_iii_info.tsv' -print0 | xargs -0 tail -n +2 >> {params.temp_out}
         grep -v "==>" {params.temp_out} > {output}
         '''
-#        find '{base_path}/09_crispr_iii_CorA/loci' -maxdepth 2 -type f -wholename '*/*_crispr_iii_info.tsv' -print0 | xargs -0 tail -n +2 >> {params.temp_out}        
-#        grep -v "Unknown_genes" {params.temp_out} >> {output}
-#        find '{base_path}/09_crispr_iii_CorA/loci' -maxdepth 2 -type f -wholename '*/*_crispr_iii_info.tsv' -print0 | xargs -0 cat >> {params.temp_out}
 
 rule Cas10_concatenate:
     '''
@@ -1602,27 +1571,11 @@ rule Cas10_concatenate:
     '''
     input: aggregate_cas10_sequences
     output: base_path + "/10_Cas10_cluster/cas10s.faa"
+    threads: thread_ultrasmall
     shell:
         '''
         cat {input} > {output} 
         '''
-
-# rule add_domain_info:
-#     '''
-#     This adds domain information (bacteria and archaea) for all samples
-#     '''
-#     input:
-#         domains = rules.annotate_bacteria_and_archaea_domains.output,
-#         info_file = rules.concatenate_type_iii_info.output
-#     output: base_path + "/09_crispr_iii_CorA/loci/type_iii_info_domains.tsv"
-#     run:
-#         import pandas as pd
-#         domains = pd.read_csv(str(input.domains), sep = "\t")
-#         info = pd.read_csv(str(input.info_file), sep = "\t")
-#         merged = pd.merge(info, domains, left_on = "Sample", right_on = "sample", how = "left")
-#         merged.to_csv(str(output), sep = "\t", index = False)
-        
-
 
 rule Cas10_HD_hmm_maker:
     '''
@@ -1640,6 +1593,7 @@ rule Cas10_HD_hmm_maker:
         msa = base_path + "/Cas10_HD_hmm_profiles/HD_HMM.msa",
         faa = base_path + "/Cas10_HD_hmm_profiles/HD_HMM.faa",
     conda: "envs/hmmer.yaml"
+    threads: thread_ultrasmall
     shell:
         '''
         python scripts/Cas10_HD_hmm_maker.py --input_table {input.info_table} --cas10_sequences {input.cas10_sequences} --output {output.hmm} --msa {output.msa} --faa {output.faa}  --existing_alignment_path {modified_cas10_hd}
@@ -1662,9 +1616,10 @@ rule Cas10_HD_hmmer:
         rows1 = base_path + "/Cas10_HD_hmm_profiles/HD_HMM_hits_rows1.out",
         E = "1e-01"
     conda: "envs/hmmer.yaml"
+    threads: thread_hogger
     shell:
         '''
-        hmmscan --tblout {params.out} --cpu 8 -E {params.E} {input.hmm_db} {input.cas10_sequences} &> /dev/null
+        hmmscan --tblout {params.out} --cpu {threads} -E {params.E} {input.hmm_db} {input.cas10_sequences} &> /dev/null
         grep -v "#" {params.out} > {params.rows}||:
         echo "target_name accession query_name accession E-value score bias E-value_best_domain score bias exp reg clu over env dom rep inc description_of_target" > {output.raw_table}
         cat {params.rows} >> {output.raw_table}
@@ -1679,6 +1634,7 @@ rule merge_HD_hmm_with_info:
         HD_hmm_hits = rules.Cas10_HD_hmmer.output.raw_table
     output:
         merged_table = base_path + "/Cas10_HD_hmm_profiles/HD_HMM_hits_merged.tsv"
+    threads: thread_ultrasmall
     run:
         import pandas as pd
         info = pd.read_csv(str(input.info_table), sep = "\t")
@@ -1706,24 +1662,6 @@ rule merge_HD_hmm_with_info:
         merged.to_csv(str(output.merged_table), sep = "\t", index = False)
 
 
-# rule combine_HD_HMM_to_mastertable:
-#     '''
-#     Merges the HD-HMM data with the master table
-#     '''
-#     input:
-#         info = rules.add_domain_info.output,
-#         HD_hmm_hits = rules.merge_HD_hmm_with_info.output.merged_table,
-
-#     output:
-#         final_info_table = base_path + "/mastertable.tsv"
-#     run:
-#         import pandas as pd
-#         info = pd.read_csv(str(input.info), sep = "\t")
-#         hmm_hits = pd.read_csv(str(input.HD_hmm_hits), sep = "\t")
-#         merged = pd.merge(info, hmm_hits, on = "Locus", how = "left")
-#         merged.to_csv(str(output.final_info_table), sep = "\t", index = False)
-
-
 rule R_HD:
     '''
     R script that produces a histogram of Cas10s and their HD domains
@@ -1738,6 +1676,7 @@ rule R_HD:
         outputfolder = base_path + "/4_R_HD"
     conda:
         "envs/R.yaml"
+    threads: thread_ultrasmall
     shell:
         '''
         Rscript R/HD_R.R --input {input} --output {params.outputfolder} 2> {log.out} 1> {log.err}
@@ -1763,6 +1702,7 @@ rule Cas10_GGDD_hmm_maker:
         msa_GGDE = base_path + "/Cas10_GGDD_hmm_profiles/GGDE_HMM.msa",
         faa_GGDE = base_path + "/Cas10_GGDD_hmm_profiles/GGDE_HMM.faa",
     conda: "envs/hmmer.yaml"
+    threads: thread_hogger
     shell:
         '''
         python scripts/Cas10_GGDD_hmm_maker.py --input_table {input.info_table} --cas10_sequences {input.cas10_sequences} --output {output.hmm} --msa {output.msa} --faa {output.faa} --motif "GGDD"
@@ -1788,14 +1728,15 @@ rule Cas10_GGDD_hmmer:
         rows1 = base_path + "/Cas10_GGDD_hmm_profiles/GGDD_HMM_hits_rows1.out",
         E = "1e-03"
     conda: "envs/hmmer.yaml"
+    threads: thread_hogger
     shell:
         '''
-        hmmscan --tblout {params.out} --cpu 8 -E {params.E} {input.hmm_db_GGDD} {input.cas10_sequences}
+        hmmscan --tblout {params.out} --cpu {threads} -E {params.E} {input.hmm_db_GGDD} {input.cas10_sequences}
         grep -v "#" {params.out} > {params.rows}||:
         echo "target_name accession query_name accession E-value score bias E-value_best_domain score bias exp reg clu over env dom rep inc description_of_target" > {output.raw_table_GGDD}
         cat {params.rows} >> {output.raw_table_GGDD}
 
-        hmmscan --tblout {params.out} --cpu 8 -E {params.E} {input.hmm_db_GGDE} {input.cas10_sequences}
+        hmmscan --tblout {params.out} --cpu {threads} -E {params.E} {input.hmm_db_GGDE} {input.cas10_sequences}
         grep -v "#" {params.out} > {params.rows}||:
         echo "target_name accession query_name accession E-value score bias E-value_best_domain score bias exp reg clu over env dom rep inc description_of_target" > {output.raw_table_GGDE}
         cat {params.rows} >> {output.raw_table_GGDE}
@@ -1811,6 +1752,7 @@ rule merge_GGDD_hmm_with_info:
         GGDE_hmm_hits = rules.Cas10_GGDD_hmmer.output.raw_table_GGDE
     output:
         merged_table = base_path + "/Cas10_GGDD_hmm_profiles/GGDD_HMM_hits_merged.tsv"
+    threads: thread_small
     run:
         import pandas as pd
         info = pd.read_csv(str(input.info_table), sep = "\t")
@@ -1858,6 +1800,7 @@ rule combine_GGDD_HMM_to_mastertable:
         domains = rules.annotate_bacteria_and_archaea_domains.output,
     output:
         final_info_table = base_path + "/mastertable.tsv"
+    threads: thread_ultrasmall
     run:
         import pandas as pd
         info = pd.read_csv(str(input.info), sep = "\t")
@@ -1880,6 +1823,7 @@ rule cora_plot_extractor:
         info = rules.concatenate_type_iii_info.output[0]
     output:
         done = base_path + "/xtra1_cora_iii_loci_plots/done.done",
+    threads: thread_small
     run:
         import pandas as pd
         import shutil
@@ -1915,6 +1859,7 @@ rule CorA_concatenate:
         coras = aggregate_CorA_sequences_catyper,
         type_iii_wildcarder_finished = rules.concatenate_type_iii_info.output
     output: base_path + "/09_crispr_iii_CorA/CorAs.faa"
+    threads: thread_ultrasmall
     shell:
         '''
         cat {input.coras} > {output}
@@ -1932,7 +1877,7 @@ rule CorA_cluster:
     log:
         out = base_path + "/15_CorA_cluster/logs/CorA_align.out",
         err = base_path + "/15_CorA_cluster/logs/CorA_align.err"
-    threads: 40
+    threads: thread_hogger
     shell:
         '''
         cd-hit -i {input} -o {output.proteins} -c 0.90 -n 5 -d 0 -M 16000 -T {threads}
@@ -1946,7 +1891,7 @@ rule CorA_align:
     log:
         out = base_path + "/16_CorA_align/logs/CorA_align.out",
         err = base_path + "/16_CorA_align/logs/CorA_align.err"
-    threads: 40
+    threads: thread_hogger
     shell:
         '''
         muscle -super5 "{input}" -output "{output}" -threads {threads} 2> {log.err} 1> {log.out}
@@ -1959,7 +1904,7 @@ rule CorA_align_unclustered:
     log:
         out = base_path + "/16_CorA_align/logs/CorA_align.out",
         err = base_path + "/16_CorA_align/logs/CorA_align.err"
-    threads: 40
+    threads: thread_hogger
     shell:
         '''
         muscle -super5 "{input}" -output "{output}" -threads {threads} 2> {log.err} 1> {log.out}
@@ -1972,6 +1917,7 @@ rule CorA_tree:
     input: rules.CorA_align.output
     output: base_path + "/17_CorA_tree/CorA_tree.txt",
     conda: "envs/trees.yaml"
+    threads: thread_hogger
     shell:
         '''
         FastTree -wag -gamma {input} > {output}
@@ -1984,6 +1930,7 @@ rule CorA_tree_unclustered:
     input: rules.CorA_align_unclustered.output
     output: base_path + "/17_CorA_tree_unclustered/CorA_tree_unclustered.txt",
     conda: "envs/trees.yaml"
+    threads: thread_hogger
     shell:
         '''
         FastTree -wag -gamma {input} > {output}
@@ -2002,7 +1949,7 @@ rule Cas10_cluster:
     log:
         out = base_path + "/10_Cas10_cluster/logs/cas10_align.out",
         err = base_path + "/10_Cas10_cluster/logs/cas10_align.err"
-    threads: 40
+    threads: thread_hogger
     shell:
         '''
         echo {protein_clustering}
@@ -2025,7 +1972,7 @@ rule Cas10_align:
     log:
         out = base_path + "/11_Cas10_align/logs/cas10_align.out",
         err = base_path + "/11_Cas10_align/logs/cas10_align.err"
-    threads: 40
+    threads: thread_hogger
     shell:
         '''
         muscle -super5 "{input}" -output "{output}" -threads {threads} 2> {log.err} 1> {log.out}
@@ -2038,6 +1985,7 @@ rule Cas10_tree:
     input: rules.Cas10_align.output
     output: base_path + "/12_Cas10_tree/cas10_tree.txt",
     conda: "envs/trees.yaml"
+    threads: thread_hogger
     shell:
         '''
         FastTree -wag -gamma {input} > {output}
@@ -2065,9 +2013,10 @@ rule validated_new_effectors:
     log:
         out = base_path + "/60_validated_new_effectors/logs/{c}/{c}_validated_new_effectors.out",
         err = base_path + "/60_validated_new_effectors/logs/{c}/{c}_validated_new_effectors.err"
+    threads: thread_small
     shell:
         '''
-        hmmscan --domtblout {params.temp_hmm} --cpu 8 -E {params.evalue} {params.validated_effectors_hmm_db} {input.proteins} &> /dev/null
+        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.validated_effectors_hmm_db} {input.proteins} &> /dev/null
         echo "Removing commented rows" >> {log.out}
         grep -v "^#" {params.temp_hmm} > {output.temp_rows} ||:
         echo "Writing header" >> {log.out}
@@ -2085,6 +2034,7 @@ rule validated_new_effectors:
 rule concatenate_validate_new_effectors_hmm:
     input: aggregate_validated_new_effectors_hmm
     output: base_path + "/60_validated_new_effectors/validated_new_effectors_all_hmm.tsv"
+    threads: thread_ultrasmall
     shell:
         """
         awk '(NR == 1) || (FNR > 1)' {input} > {output}
@@ -2110,6 +2060,7 @@ rule validated_new_effectors_analysis:
     log:
         out = base_path + "/61_validated_new_effectors_analysis/logs/{c}.out",
         err = base_path + "/61_validated_new_effectors_analysis/logs/{c}.err",
+    threads: thread_ultrasmall
     shell:
         '''
         echo "Running validated effector analysis" >> {log.out}
@@ -2121,6 +2072,7 @@ rule validated_new_effectors_analysis:
 rule concatenate_validated_new_effectors_analysis:
     input: aggregate_validated_new_effectors_analysis
     output: base_path + "/61_validated_new_effectors_analysis/validated_new_effectors_all_hmm.tsv"
+    threads: thread_ultrasmall
     shell:
         """
         awk '(NR == 1) || (FNR > 1)' {input} > {output}
@@ -2137,6 +2089,7 @@ rule concatenate_validated_new_effectors_scores:
     output:
         protein_to_effector_concatenated = base_path + "/61_validated_new_effectors_analysis/val_new_effectors_protein_to_effector.tsv",
         effector_to_protein_concatenated = base_path + "/61_validated_new_effectors_analysis/val_new_effectors_to_protein.tsv",
+    threads: thread_ultrasmall
     shell:
         '''
         cat {input.protein_to_effector} > {output.protein_to_effector_concatenated}
@@ -2156,6 +2109,7 @@ rule analyse_validated_new_effectors_scores:
         #effector_scores_plot1 = base_path + "/11_cATyper_analysis/cATyper_effector_scores_plot1.png",
     params:
         outdir = base_path + "/61_validated_new_effectors_analysis"
+    threads: thread_ultrasmall
     shell:
         '''
         python scripts/catyper_effector_scores.py --pte {input.pte} --etp {input.etp} --output {output.effector_scores} --output_summary {output.effector_scores_summary} --outdir {params.outdir}
@@ -2173,6 +2127,7 @@ rule heatmap_known_validated_effectors:
     params:
         outdir = base_path + "/70_validated_and_known_effectors_heatmap",
         dummyout = base_path + "/70_validated_and_known_effectors_heatmap/dummyout.tsv"
+    threads: thread_ultrasmall
     shell:
         '''
         cat {input.etp_validated} {input.etp_known} > {output.effectors_combined}
@@ -2199,9 +2154,10 @@ rule ring_nucleases:
     log:
         out = base_path + "/70_ring_nucleases/logs/{c}/{c}_ring_nucleases.out",
         err = base_path + "/70_ring_nucleases/logs/{c}/{c}_ring_nucleases.err"
+    threads: thread_small
     shell:
         '''
-        hmmscan --domtblout {params.temp_hmm} --cpu 8 -E {params.evalue} {params.validated_effectors_hmm_db} {input.proteins} &> /dev/null
+        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.validated_effectors_hmm_db} {input.proteins} &> /dev/null
         echo "Removing commented rows" >> {log.out}
         grep -v "^#" {params.temp_hmm} > {output.temp_rows} ||:
         echo "Writing header" >> {log.out}
@@ -2219,6 +2175,7 @@ rule ring_nucleases:
 rule concatenate_validate_ring_nucleases_hmm:
     input: aggregate_ring_nucleases_hmm
     output: base_path + "/70_ring_nucleases/ring_nucleases_all_hmm.tsv"
+    threads: thread_ultrasmall
     shell:
         """
         awk '(NR == 1) || (FNR > 1)' {input} > {output}
@@ -2243,6 +2200,7 @@ rule ring_nucleases_analysis:
     log:
         out = base_path + "/71_ring_nucleases_analysis/logs/{c}.out",
         err = base_path + "/71_ring_nucleases_analysis/logs/{c}.err",
+    threads: thread_ultrasmall
     shell:
         '''
         echo "Running validated effector analysis" >> {log.out}
@@ -2254,6 +2212,7 @@ rule ring_nucleases_analysis:
 rule concatenate_ring_nucleases_analysis:
     input: aggregate_ring_nucleases_analysis
     output: base_path + "/71_ring_nucleases_analysis/ring_nucleases_all_hmm.tsv"
+    threads: thread_ultrasmall
     shell:
         """
         awk '(NR == 1) || (FNR > 1)' {input} > {output}
@@ -2271,6 +2230,7 @@ rule concatenate_ring_nucleases_scores:
     output:
         protein_to_effector_concatenated = base_path + "/71_ring_nucleases_analysis/ring_nucleases_protein_to_effector.tsv",
         effector_to_protein_concatenated = base_path + "/71_ring_nucleases_analysis/ring_nucleases_effectors_to_protein.tsv",
+    threads: thread_small
     shell:
         '''
         cat {input.protein_to_effector} > {output.protein_to_effector_concatenated}
@@ -2290,6 +2250,7 @@ rule analyse_ring_nucleases_scores:
         #effector_scores_plot1 = base_path + "/11_cATyper_analysis/cATyper_effector_scores_plot1.png",
     params:
         outdir = base_path + "/71_ring_nucleases_analysis"
+    threads: thread_small
     shell:
         '''
         python scripts/catyper_effector_scores.py --pte {input.pte} --etp {input.etp} --output {output.effector_scores} --output_summary {output.effector_scores_summary} --outdir {params.outdir}
@@ -2307,6 +2268,7 @@ rule heatmap_ring_nucleases:
     params:
         outdir = base_path + "/72_ring_nucleases_heatmap",
         dummyout = base_path + "/72_ring_nucleases_heatmap/dummyout.tsv"
+    threads: thread_small
     shell:
         '''
         cat {input.etp_validated} {input.etp_known} > {output.effectors_combined}
@@ -2328,6 +2290,7 @@ rule ring_nucleases_fusions:
     log:
         out = base_path + "/73_ring_nuclease_fusions/logs/{c}.out",
         err = base_path + "/73_ring_nuclease_fusions/logs/{c}.err",
+    threads: thread_ultrasmall
     shell:
         '''
         python scripts/ringnucleasefusionfinder.py --locus {wildcards.c} --output_folder {params.outdir} --hmm_rows {input.hmm_rows} 2> {log.err} 1> {log.out}
@@ -2336,6 +2299,7 @@ rule ring_nucleases_fusions:
 rule concatenate_ring_nuclease_fusions:
     input: aggregate_ring_nuclease_fusions
     output: base_path + "/73_ring_nuclease_fusions/ring_nuclease_fusions_all_hmm.tsv"
+    threads: thread_ultrasmall
     shell:
         """
         awk '(NR == 1) || (FNR > 1)' {input} > {output}
@@ -2354,6 +2318,7 @@ rule ring_fusions:
         ring_nucleases = rules.concatenate_ring_nucleases_scores.output.protein_to_effector_concatenated,
     output:
         ring_fusions = base_path + "/100_ring_fusions/ring_fusions.tsv"
+    threads: thread_ultrasmall
     shell:
         '''
         python scripts/ring_fusions.py --known_effectors {input.known_effectors} --validated_new_effectors {input.validated_new_effectors} --ring_nucleases {input.ring_nucleases} --output {output.ring_fusions}
@@ -2376,9 +2341,10 @@ rule ring_nuclease_cas10_fusions:
     log:
         out = base_path + "/101_ring_fusions_cas10/logs/ring_fusions_cas10.out",
         err = base_path + "/101_ring_fusions_cas10/logs/ring_fusions_cas10.err"
+    threads: thread_hogger
     shell:
         '''        
-        hmmscan --domtblout {params.temp_hmm} --cpu 40 -E {params.evalue} {params.ring_nuclease_hmm_db} {input.cas10}
+        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.ring_nuclease_hmm_db} {input.cas10}
         echo "Removing commented rows" >> {log.out}
         grep -v "^#" {params.temp_hmm} > {output.temp_rows} ||:
         echo -e 'target_name\taccession\ttlen\tquery_name\taccession\tqlen\tE-value_fullseq\tscore_fullseq\tbias_fullseq\t#_domain\tof_domain\tc-Evalue_domain\ti-Evalue_domain\tscore_domain\tbias_domain\t_hmm_from\thmm_to\t_ali_from\tali_to\tenv_from\tenv_to\tacc\tdescription' > {output.hmm_rows}
@@ -2403,9 +2369,10 @@ rule validated_effectors_cas10_fusions:
     log:
         out = base_path + "/101_validated_effectors_cas10/logs/validated_effectors_cas10.out",
         err = base_path + "/101_validated_effectors_cas10/logs/validated_effectors_cas10.err"
+    threads: thread_hogger
     shell:
         '''        
-        hmmscan --domtblout {params.temp_hmm} --cpu 40 -E {params.evalue} {params.validated_effectors_hmm_db} {input.cas10}
+        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.validated_effectors_hmm_db} {input.cas10}
         echo "Removing commented rows" >> {log.out}
         grep -v "^#" {params.temp_hmm} > {output.temp_rows} ||:
         echo -e 'target_name\taccession\ttlen\tquery_name\taccession\tqlen\tE-value_fullseq\tscore_fullseq\tbias_fullseq\t#_domain\tof_domain\tc-Evalue_domain\ti-Evalue_domain\tscore_domain\tbias_domain\t_hmm_from\thmm_to\t_ali_from\tali_to\tenv_from\tenv_to\tacc\tdescription' > {output.hmm_rows}
@@ -2429,9 +2396,10 @@ rule known_effectors_cas10_fusions:
     log:
         out = base_path + "/101_known_effectors_cas10/logs/known_effectors_cas10.out",
         err = base_path + "/101_known_effectors_cas10/logs/known_effectors_cas10.err"
+    threads: thread_hogger
     shell:
         '''        
-        hmmscan --domtblout {params.temp_hmm} --cpu 40 -E {params.evalue} {params.known_effectors_db} {input.cas10}
+        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.known_effectors_db} {input.cas10}
         echo "Removing commented rows" >> {log.out}
         grep -v "^#" {params.temp_hmm} > {output.temp_rows} ||:
         echo -e 'target_name\taccession\ttlen\tquery_name\taccession\tqlen\tE-value_fullseq\tscore_fullseq\tbias_fullseq\t#_domain\tof_domain\tc-Evalue_domain\ti-Evalue_domain\tscore_domain\tbias_domain\t_hmm_from\thmm_to\t_ali_from\tali_to\tenv_from\tenv_to\tacc\tdescription' > {output.hmm_rows}
@@ -2454,6 +2422,7 @@ rule mastercombiner:
     output:
         final_info_table = base_path + "/mastertable_v2.tsv",
         group4_IDs = base_path + "/group4/group4_IDs.txt"
+    threads: thread_small
     run:
         import pandas as pd
         mastertable = pd.read_csv(str(input.type_iii_info), sep = "\t")
@@ -2645,6 +2614,7 @@ rule node_graph:
         outdir = base_path + "/80_node_graph",
         edges_basename = base_path + "/80_node_graph/edges.tsv",
         nodes_basename = base_path + "/80_node_graph/nodes.tsv"
+    threads: thread_small
     shell:
         '''
         python scripts/effector_nodes_and_other_viz.py -i {input.mastertable} -e {input.effector_list} -o {params.outdir} -n {params.nodes_basename} -d {params.edges_basename}
@@ -2656,6 +2626,7 @@ rule transmembrane_prediction:
     '''
     input:
         contig_proteins = rules.cATyper_hmm_search.output.contig_proteins
+    threads: thread_ultrasmall
     output:
         tmhmm_results = base_path + "/90_transmembrane_prediction/{c}/{c}_tmhmm_results.tsv"
     
@@ -2687,6 +2658,7 @@ rule groupCharacteriser:
         err = base_path + "/group4/logs/group4_characteriser.err"
     conda:
         "envs/groupChar.yaml"
+    threads: thread_small
     shell:
         '''
         python3 scripts/groupCharacteriser.py --input {input.group4_list} --unknown_proteins {input.unknown_proteins} --output_basename {params.output_base} --clustered_unknowns {output.clustered_unknowns} --individual_fastas_dir {params.output_individual_fastas} --tmhmm_model {params.tmhmm_model} --outputfolder {params.outdir} 2> {log.err} 1> {log.out}
@@ -2708,7 +2680,7 @@ rule group4_PDB:
         pdb70 = "/media/volume/st_andrews/databases/pdb/pdb70",
         pdb30 = "/media/volume/st_andrews/databases/pdb30/pdb30",
     conda: "envs/hhsuite.yaml"
-    threads: 40
+    threads: thread_hogger
     log:
         out = base_path + "/group4/pdb/logs/pdb.out",
         err = base_path + "/group4/pdb/logs/pdb.err",
@@ -2727,9 +2699,10 @@ rule parse_hhsuite_group4_pdb:
     conda: "envs/hhsuite.yaml"
     params:
         database = "PDB"
+    threads: thread_ultrasmall
     shell:
         '''
-        python3 scripts/hhsuite_parser.py --infile {input} --outfile {output}  --database {params.database}
+        python3 scripts/hhsuite_parser.py --infile {input} --outfile {output} --database {params.database}
         '''
 
 rule group4_COGs:
@@ -2744,7 +2717,7 @@ rule group4_COGs:
         outdir = base_path + "/group4/cog",
         cogs = "/media/volume/st_andrews/databases/cog/COG_KOG/COG_KOG"
     conda: "envs/hhsuite.yaml"
-    threads: 40
+    threads: thread_hogger
     log:
         out = base_path + "/group4/cog/logs/cog.out",
         err = base_path + "/group4/cog/logs/cog.err",
@@ -2764,6 +2737,7 @@ rule parse_hhsuite_group4_cog:
     params:
         database = "COGs",
         mapping = "/media/volume/st_andrews/databases/cog/COG_KOG/cog-20.def.tab"
+    threads: thread_small
     shell:
         '''
         python3 scripts/hhsuite_parser.py --infile {input} --outfile {output} --database {params.database} --mapping {params.mapping}
@@ -2786,6 +2760,7 @@ rule group4_commonness:
         blast_result_temp = base_path + "/group4_prober/{c}/{c}.blast.temp"
     conda:
         "envs/diamond.yaml"
+    threads: thread_ultrasmall
     shell:
         '''
         diamond makedb --in {input.locus_proteins} -d {output.diamond_db} --quiet
@@ -2801,6 +2776,7 @@ rule concatenate_group4_commonness:
     input: aggregate_group4_blasts
     output:
         concatenated_blast_results = base_path + "/group4_prober/group4_prober.blast"
+    threads: thread_ultrasmall
     shell:
         '''
         echo -e "{blast_headers_group4}" > {output}
@@ -2815,6 +2791,7 @@ rule analyseGroup4Hits:
         results_txt = base_path + "/group4_prober/group4_prober_analysis.txt"
     params:
         outpath = base_path + "/group4_prober"
+    threads: thread_ultrasmall
     shell:
         '''
         python3 scripts/group4HitsAnalyser.py --input_blast {input.blast_results} --input_pfam_annotations {input.pfam_hits} --output {output.results_txt} --outpath {params.outpath}
@@ -2831,6 +2808,7 @@ rule effector_commonness:
         #effector_commonness_plot = base_path + "/13_effector_commonness/effector_commonness.png"
     params:
         base_path = base_path + "/13_effector_commonness/effector_commonness"
+    threads: thread_ultrasmall
     shell:
         '''
         python3 scripts/effector_commonness.py --input {input.crispr_loci} --output_basepath {params.base_path}
@@ -2855,6 +2833,7 @@ rule cctyper_gene_locations:
     log:
         out = base_path + "/14_cctyper_gene_locations/logs/{c}.out",
         err = base_path + "/14_cctyper_gene_locations/logs/{c}.err"
+    threads: thread_ultrasmall
     shell:
         '''
         python scripts/cctyper_gene_locations.py --locus_id {wildcards.c} --sample_folder {params.sample_folder} --this_folder {params.this_folder} --outputfolder {params.outputfolder} --cas_operons {input.cas_operons_cctyper} --cctyper_path {params.cctyper_folder} --protein_fasta {input.cas_proteins} 2> {log.err} 1> {log.out}
@@ -2885,6 +2864,7 @@ rule locus_visualiser:
     log:
         out = base_path + "/90_locus_viz/logs/{c}.out",
         err = base_path + "/90_locus_viz/logs/{c}.err",
+    threads: thread_ultrasmall
     shell:
         '''
         python scripts/locus_visualiser.py --locus {wildcards.c} --cas_operons_file {input.crispr_positive_samples} --output_folder {params.outdir} --host_genomes_folder {params.host_genomes_folder} --cctyper_folder {params.cctyper_folder} --validated_effectors {input.plottable_effector_positions} --cctyper_protein_table {input.cctyper_plottable} --known_effector_table {input.known_effectors}  2> {log.err} 1> {log.out}
@@ -2893,29 +2873,11 @@ rule locus_visualiser:
 rule concatenate_locus_viz:
     input: aggregate_locus_viz
     output: base_path + "/90_locus_viz/locus_viz.done"
+    threads: thread_ultrasmall
     shell:
         '''
         touch {output}
         '''
-        
-# rule create_excel_file:
-#     '''
-#     This creates an Excel file out of the mastertable and adds hyperlinks
-#     to the loci figures and the associated .tsv files
-#     '''
-#     input:
-#         mastertable = rules.mastercombiner.output.final_info_table,
-#     output:
-#         excel_file = base_path + "/type_iii_mastertable.xlsx"
-#     params:
-#         viz_dir_full = base_path + "/90_locus_viz",
-#         viz_dir_relative = "90_locus_viz",
-#     conda:
-#         "envs/excel_output.yaml"
-#     shell:
-#         '''
-#         python scripts/excel_writer.py --mastertable {input.mastertable} --viz_dir_full {params.viz_dir_full} --viz_dir_relative {params.viz_dir_relative} --output_excel {output.excel_file}
-#         '''
 
 
 rule create_html_file:
@@ -2932,6 +2894,7 @@ rule create_html_file:
         viz_dir_relative = "data",
     conda:
         "envs/excel_output.yaml"
+    threads: thread_ultrasmall
     shell:
         '''
         python scripts/html_writer.py --mastertable {input.mastertable} --viz_dir_full {params.viz_dir_full} --viz_dir_relative {params.viz_dir_relative} --output_html {output.html_file}
@@ -2954,6 +2917,7 @@ rule casR_clustering:
         casR_wildcarded = base_path + "/14_cctyper_gene_locations/*/*casR.faa",
         cutoff = 0.4,
         n = 2,
+    threads: thread_ultrasmall
     shell:
         '''
         cat {params.casR_wildcarded} > {output.concatenated_casR}
@@ -3010,6 +2974,7 @@ rule final:
         known_effectors_cas10_fusions = rules.known_effectors_cas10_fusions.output.hmm_rows,
         ring_nucleases_fusions = rules.concatenate_ring_nuclease_fusions.output,
     output: base_path + "/done"
+    threads: thread_small
     shell:
         '''
         touch {output}

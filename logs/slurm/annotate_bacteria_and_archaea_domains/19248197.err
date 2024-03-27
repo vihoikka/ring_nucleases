@@ -1,0 +1,33 @@
+/mnt/shared/scratch/vhoikkal/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder/rn.smk:602: SyntaxWarning: invalid escape sequence '\.'
+  '''
+/mnt/shared/scratch/vhoikkal/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder/rn.smk:629: SyntaxWarning: invalid escape sequence '\.'
+  
+/mnt/shared/scratch/vhoikkal/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder/rn.smk:1444: SyntaxWarning: invalid escape sequence '\.'
+  #         temp_rows = base_path + "/10_cATyper_hmm/{c}/{c}_temp_rows.out",
+/mnt/shared/scratch/vhoikkal/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder/rn.smk:1472: SyntaxWarning: invalid escape sequence '\;'
+  #             echo "No hits found for {wildcards.c}" >> {log.out}
+/mnt/shared/scratch/vhoikkal/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder/rn.smk:1483: SyntaxWarning: invalid escape sequence '\;'
+  
+/mnt/shared/scratch/vhoikkal/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder/rn.smk:2751: SyntaxWarning: invalid escape sequence '\s'
+  out = base_path + "/group4/cog/logs/cog.out",
+/mnt/shared/scratch/vhoikkal/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder/rn.smk:2969: SyntaxWarning: invalid escape sequence '\s'
+  tax = base_path + "/06_host_genomes/taxInfo.txt",
+/mnt/shared/scratch/vhoikkal/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder/rn.smk:2970: SyntaxWarning: invalid escape sequence '\s'
+  tree_Cas10 = rules.Cas10_tree.output,
+Building DAG of jobs...
+Using shell: /usr/bin/bash
+Provided cores: 2
+Rules claiming more threads will be scaled down.
+Provided resources: mem_mb=1000, mem_mib=954, disk_mb=1000, disk_mib=954
+Select jobs to execute...
+
+[Tue Mar 26 15:59:48 2024]
+rule annotate_bacteria_and_archaea_domains:
+    output: /home/vhoikkal/scratch/private/runs/ring_nucleases/run1/01_genomelist/annotated_genomelist.csv
+    jobid: 0
+    reason: Forced execution
+    resources: mem_mb=1000, mem_mib=954, disk_mb=1000, disk_mib=954, tmpdir=/tmp/vhoikkal_19248197
+
+[Tue Mar 26 16:00:24 2024]
+Finished job 0.
+1 of 1 steps (100%) done

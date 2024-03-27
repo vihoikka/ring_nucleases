@@ -1,0 +1,18 @@
+                sample  domain_x domain_y
+0      GCF_000005845.2  Bacteria      NaN
+1      GCF_000006605.1  Bacteria      NaN
+2      GCF_000006625.1  Bacteria      NaN
+3      GCF_000006645.1  Bacteria      NaN
+4      GCF_000006685.1  Bacteria      NaN
+...                ...       ...      ...
+38736  GCF_963920465.1  Bacteria      NaN
+38737  GCF_963920475.1  Bacteria      NaN
+38738  GCF_963920485.1  Bacteria      NaN
+38739  GCF_963920495.1  Bacteria      NaN
+38740  GCF_963920505.1  Bacteria      NaN
+
+[38741 rows x 3 columns]
+Starting Cas10/CorA pipeline. Configs:
+Protein clustering: False
+
+Running Cas10 stuff
