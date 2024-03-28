@@ -30,13 +30,15 @@ parser.add_argument('-if', '--individual_fastas_dir', type=str, metavar='individ
                     help='A folder where individual protein fastas are outputted to.')
 parser.add_argument('-of', '--outputfolder', type=str, metavar='outputfolder', required=True)
 parser.add_argument('-tm', '--tmhmm_model', type=str, metavar='tmhmm_model', required=True)
+parser.add_argument('pfd','--pfam_db', type=str, required=True)
+parser.add_argument('cs','--carfsaved_db', type=str, required=True)
 
 #parser.add_argument('-p', '--project', type=str, metavar='project', required=True)
 
 args = parser.parse_args()
 
-CARFSAVED_hmm_db_path = "/media/volume/st_andrews/databases/carfsaved/02_hmm_profiles/carfsaved.hmm"
-pfams_hmm_db = "/media/volume/st_andrews/databases/pfam/Pfam-A.hmm"
+CARFSAVED_hmm_db_path = args.carfsaved_db
+pfams_hmm_db = args.pfam_db
 project_root = "/media/volume/st_andrews/new_effectors"
 
 #output files

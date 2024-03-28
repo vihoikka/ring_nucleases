@@ -25,12 +25,14 @@ parser.add_argument('-u', '--unknown_proteins', type=str, metavar='unknown_prote
                     help='The fasta file containing all unknown proteins.')
 parser.add_argument('-o', '--output_basename', type=str, metavar='output', required=True,
                     help='The output file to write the results to.')
+parser.add_argument('pfd','--pfam_db', type=str, required=True)
+parser.add_argument('cs','--carfsaved_db', type=str, required=True)
 #parser.add_argument('-p', '--project', type=str, metavar='project', required=True)
 
 args = parser.parse_args()
 
-CARFSAVED_hmm_db_path = "/media/volume/st_andrews/databases/carfsaved/02_hmm_profiles/carfsaved.hmm"
-pfams_hmm_db = "/media/volume/st_andrews/databases/pfam/Pfam-A.hmm"
+CARFSAVED_hmm_db_path = args.carfsaved_db
+pfams_hmm_db = args.pfam_db
 project_root = "/media/volume/st_andrews/new_effectors"
 
 #output files

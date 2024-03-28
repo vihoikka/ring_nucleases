@@ -7,3 +7,5 @@ scripts/__pycache__/*
 *.plot
 *.summary
 unknown_proteins_to_blast.fasta
+logs
+logs/*

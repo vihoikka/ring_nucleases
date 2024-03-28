@@ -24,7 +24,23 @@ hmm_msa_folder = "/home/vhoikkal/scratch/private/databases/custom_hmm/known_type
 hmm_database_folder = "/home/vhoikkal/scratch/private/databases/custom_hmm/known_type_iii_effectors/concatenated_profiles" #contains the concatenated and hmmpressed hmm profiles
 hmm_database_file = "all.hmm" #filename for the concatenated hmmpressed hmm profiles
 
+cas10_db = "/mnt/shared/scratch/vhoikkal/private/databases/custom_hmm/cas10/all_cas10s.hmm"
 modified_cas10_hd = "/home/vhoikkal/scratch/private/databases/custom_hmm/cas10/HD_HMM.msa" #modified cas10 hmm profile for hmmsearch
+
+carfsaved_db = "/home/vhoikkal/scratch/private/databases/carfsaved/carfsaved.hmm"
+
+TM_path = "/mnt/shared/scratch/vhoikkal/private/databases/TM"
+additional_cas_proteins = "/mnt/shared/scratch/vhoikkal/private/databases/cas_proteins"
+validated_effectors_hmm_db = "/home/vhoikkal/scratch/private/databases/custom_hmm/validated_new_effectors/concatenated_profiles/all.hmm"
+validated_effectors_folder = "/home/vhoikkal/scratch/private/databases/custom_hmm/validated_new_effectors"
+
+ring_nuclease_db = "/home/vhoikkal/scratch/private/databases/custom_hmm/ring_nucleases/concatenated_profiles/all.hmm"
+ring_nuclease_folder = "/home/vhoikkal/scratch/private/databases/custom_hmm/ring_nucleases"
+
+#public databases (local)
+cogs_db = "/home/vhoikkal/scratch/private/databases/cogs/COG_KOG"
+pfam_db = "/home/vhoikkal/scratch/private/databases/pfam/Pfam-A.hmm"
+pdb30_db = "/home/vhoikkal/scratch/private/databases/pdb30"
 
 temperature_data = "/home/vhoikkal/scratch/private/databases/tempura/200617_TEMPURA.csv"
 
@@ -367,7 +383,8 @@ group4_pfam_headers = "target_name\taccession\tquery_name\taccession\tE-value\ts
 print("Starting Cas10/CorA pipeline. Configs:\nProtein clustering: "+ str(protein_clustering)+ "\n")
 
 rule all: 
-    input: base_path + "/01_genomelist/annotated_genomelist.csv" #base_path + "/done"
+    input: base_path + "/064_cas10_clusters/cas10_all.faa"
+    #base_path + "/01_genomelist/annotated_genomelist.csv" #base_path + "/done"
 
 
 rule write_down_genome_info:
@@ -423,7 +440,7 @@ if getGenomesBy == "local":
             genome_info = rules.write_down_genome_info.output,
             domain_annotations = rules.annotate_bacteria_and_archaea_domains.output
         output: directory(base_path + "/" + prefiltering_wildcards)
-        threads: thread_hogger
+        threads: thread_ultrasmall
         run:
             import pandas as pd
             if not os.path.exists(str(output)):
@@ -558,12 +575,15 @@ if cas10_anchor == True: #if we filter analyzable genomes by the presence of Cas
             proteins_filt = base_path + "/062_genomes_cas10/{i}/{i}_proteins_lengthfiltered.faa",
             out = base_path + "/062_genomes_cas10/{i}/{i}_temp.out",
             rows1 = base_path + "/062_genomes_cas10/{i}/{i}_temp_rows_1.out",
-            cas10_db = "/media/volume/st_andrews/cas10_corA_2/profiles/Profiles/all_cas10s.hmm",
+            cas10_db = cas10_db,
             rows = base_path + "/062_genomes_cas10/{i}/{i}_temp_rows.out",
             headers = base_path + "/062_genomes_cas10/{i}/{i}_headers.out",
             all_data = base_path + "/062_genomes_cas10/{i}/{i}_all_data.out",
         conda: "envs/hmmer.yaml"
         threads: thread_ultrasmall
+        log:
+            out = base_path + "/logs/062_genomes_cas10/{i}.log",
+            err = base_path + "/logs/062_genomes_cas10/{i}.err"
         shell:
             '''
             echo "Running rule Cas10_genomes"
@@ -571,7 +591,7 @@ if cas10_anchor == True: #if we filter analyzable genomes by the presence of Cas
             if [ -s "{input.proteins}" ]; then
                 cat {input.proteins} | seqkit seq -m 500 > {params.proteins_filt}
                 if [ -s "{params.proteins_filt}" ]; then
-                    hmmscan --domtblout {params.out} --cpu {threads} -E {corA_hmm_value} {params.cas10_db} {params.proteins_filt}  &> /dev/null
+                    hmmscan --domtblout {params.out} --cpu {threads} -E {corA_hmm_value} {params.cas10_db} {params.proteins_filt} 2> {log.err} 1> {log.out}
                     grep -v "#" {params.out} > {params.rows}||:
                     head -1 {params.rows} > {params.rows1}
                     echo "id,cas10_boolean,cas10_acc" > {output.boolean}
@@ -598,6 +618,7 @@ if cas10_anchor == True: #if we filter analyzable genomes by the presence of Cas
             proteins = base_path + "/" + prefiltering_host_genomes + "/{i}/{i}_proteins.faa"
         output: base_path + "/063_cas10_seq/{i}/{i}_cas10.faa"
         threads: thread_ultrasmall
+        conda: "envs/hmmer.yaml"
         shell: 
             '''
             CAS10_ID=$(awk -F ',' '{{print $3}}' {input.boolean})
@@ -821,7 +842,7 @@ rule cATyper_hmm_search:
     log:
         out = base_path + "/10_cATyper_hmm/logs/{c}.out",
         err = base_path + "/10_cATyper_hmm/logs/{c}.err",
-    threads: thread_small
+    threads: thread_ultrasmall
     shell:
         '''
         python scripts/catyper_prepper_10.py --locus {wildcards.c} --cas_operons_file {input.crispr_positive_samples} --output_folder {params.outdir} --host_genomes_folder {params.host_genomes_folder} --mode pre_hmm 2> {log.err} 1> {log.out}
@@ -870,7 +891,7 @@ rule cATyper_analysis:
         outdir = base_path + "/11_cATyper_analysis/{c}",
         host_genomes_folder = base_path + "/06_host_genomes",
         hmm_msa_folder = hmm_msa_folder,
-        tmhmm_model_path = "/media/volume/st_andrews/new_effectors/TM/TMHMM2.0.model",
+        tmhmm_model_path = TM_path + "/TMHMM2.0.model",
     conda: "envs/hmmer.yaml"
     log:
         out = base_path + "/11_cATyper_analysis/logs/{c}.out",
@@ -1018,8 +1039,7 @@ rule cATyper_hmm_search_hhsuite_pdb:
         hhsuite_concat = base_path + "/42_effector_hhsuite/{effector}/{effector}_all.tsv",
     params:
         outdir = base_path + "/42_effector_hhsuite/{effector}",
-        pdb70 = "/media/volume/st_andrews/databases/pdb/pdb70",
-        pdb30 = "/media/volume/st_andrews/databases/pdb30/pdb30",
+        pdb30 = pdb30_db + "/pdb30",
     conda: "envs/hhsuite.yaml"
     threads: thread_small
     log:
@@ -1069,7 +1089,7 @@ rule cATyper_hmm_search_hhsuite_cog:
         hhsuite_concat = base_path + "/42_effector_hhsuite_cogs/{effector}/{effector}_all.tsv",
     params:
         outdir = base_path + "/42_effector_hhsuite_cogs/{effector}",
-        cogs = "/media/volume/st_andrews/databases/cog/COG_KOG/COG_KOG",
+        cogs = cogs_db,
     conda: "envs/hhsuite.yaml"
     threads: thread_small
     log:
@@ -1087,7 +1107,7 @@ rule parse_hhsuite_cogs:
     conda: "envs/hhsuite.yaml"
     params:
         database = "COGs",
-        mapping = "/media/volume/st_andrews/databases/cog/COG_KOG/cog-20.def.tab"
+        mapping = cogs_db + "/cog-20.def.tab"
     threads: thread_small
     shell:
         '''
@@ -1161,101 +1181,6 @@ rule concatenate_effector_wildcards:
     shell:
         '''
         cat {input} > {output}
-        '''
-
-
-checkpoint cora_neighbourhood_preparation:
-    '''
-    Once the basic analyses for known effectors are finished, we look in detail into CorA containing loci.
-    For each CorA, we find out if it is associated with NrN and/or SAM-lyase
-    These data along with the tree and CRISPR-Cas subtype/host information are passed onto R for visualisation.
-    Get CorA loci from the mapping file and use path base_path + "/072_crispr_locus_proteins/{c}/{c}_crispr_locus_proteins.faa"
-
-    This checkpoint output can be used for wildcard generation for each CorA associated locus (see next rule)
-    '''
-    input:   
-        effectors_finished = rules.concatenate_effector_wildcards.output, #signifies all known effector batch analyses, incl. CorA, are finished
-    output: directory(base_path + "/50_cora_proteomes")
-    params:
-        cora_multifasta = base_path + "/41_known_effector_mf/cora.faa", #multifasta for cora
-        cora_tree = base_path + "/45_effector_tree/cora_tree.txt", #tree for cora
-        protein_locus_map = base_path + "/43_effector_hmmer_analysis/cora/cora.locus_map.tsv" #tsv file with protein id linking it to its original locus
-    threads: thread_small
-    run:
-        import pandas as pd
-        import shutil
-        if not os.path.exists(str(output)):
-            os.makedirs(str(output))
-        locus_map = pd.read_csv(params.protein_locus_map, sep = "\t", header = None)
-        print(locus_map)
-        locus_map.columns = ["something", "protein_id", "effector", "locus_id"]
-        print(locus_map)
-        #find proteomes for CorA loci and copy the .faas into a new folder
-        proteome_root_path = base_path + "/072_crispr_locus_proteins"
-        for index, row in locus_map.iterrows():
-            print(row)
-            print(row["locus_id"])
-            locus_path = proteome_root_path + "/" + row["locus_id"] + "/" + row["locus_id"] + "_crispr_locus_proteins.faa"
-            print("Copying proteome from " + locus_path)
-            shutil.copy(locus_path, str(output))
-
-rule blast_cora_associated_proteins_against_dbs:
-    '''
-    This rule blasts proteomes from CorA-positive CRISPR-Cas III loci
-    against NrN/DEDD and SAM-lyase databases. The results are parsed in another rule
-    '''
-    input: base_path + "/50_cora_proteomes/{cora_locus}_crispr_locus_proteins.faa"
-    output:
-        dedd = base_path + "/51_cora_neighbour_blast/{cora_locus}/dedd.tsv",
-        dedd_neo = base_path + "/51_cora_neighbour_blast/{cora_locus}/dedd_neo.tsv",
-        dedd_clost = base_path + "/51_cora_neighbour_blast/{cora_locus}/dedd_clost.tsv",
-        nrn = base_path + "/51_cora_neighbour_blast/{cora_locus}/nrn.tsv",
-        samlyase = base_path + "/51_cora_neighbour_blast/{cora_locus}/samlyase.tsv",
-    params:
-        dedd_db = "/media/volume/st_andrews/databases/cora_neighbours/dedd.dmnd",
-        dedd_neo_db = "/media/volume/st_andrews/databases/cora_neighbours/dedd_neowinella.dmnd", #additional dedd family
-        dedd_clost_db = "/media/volume/st_andrews/databases/cora_neighbours/dedd_clostridiisali.dmnd", #additional dedd family
-        nrn_db = "/media/volume/st_andrews/databases/cora_neighbours/nrn.dmnd",
-        samlyase_db = "/media/volume/st_andrews/databases/cora_neighbours/samlyase.dmnd",
-    conda: "envs/diamond.yaml"
-    threads: thread_small
-    shell:
-        '''
-        diamond blastp --db {params.dedd_db} --query {input} --out {output.dedd} --outfmt 6 --quiet
-        diamond blastp --db {params.dedd_neo_db} --query {input} --out {output.dedd_neo} --outfmt 6 --quiet
-        diamond blastp --db {params.dedd_clost_db} --query {input} --out {output.dedd_clost} --outfmt 6 --quiet
-        diamond blastp --db {params.nrn_db} --query {input} --out {output.nrn} --outfmt 6 --quiet
-        diamond blastp --db {params.samlyase_db} --query {input} --out {output.samlyase} --outfmt 6 --quiet
-        '''
-
-rule analyse_cora_associated_proteins_against_dbs:
-    '''
-    This rule analyses blast hits for NrN/DEDD and SAM-lyase hits,
-    outputting a mostly boolean .tsv file with columns:
-    locus | genome | NrN_DEDD | SAM_lyase | NrN_DEDD_sequence | SAM_lyase_sequence | CorA_sequence
-    '''
-    input:
-        dedd = base_path + "/51_cora_neighbour_blast/{cora_locus}/dedd.tsv",
-        dedd_neo = base_path + "/51_cora_neighbour_blast/{cora_locus}/dedd_neo.tsv",
-        dedd_clost = base_path + "/51_cora_neighbour_blast/{cora_locus}/dedd_clost.tsv",
-        nrn = base_path + "/51_cora_neighbour_blast/{cora_locus}/nrn.tsv",
-        samlyase = base_path + "/51_cora_neighbour_blast/{cora_locus}/samlyase.tsv",
-    output: base_path + "/52_cora_neighbour_analysis/{cora_locus}/neighbourhood_results.tsv"
-    threads: thread_small
-    params:
-        outdir = base_path + "/52_cora_neighbour_analysis/{cora_locus}"
-    shell:
-        '''
-        python scripts/cora_neighbour_analysis.py --dedd {input.dedd} --dedd_neo {input.dedd_neo} --dedd_clost {input.dedd_clost} --nrn {input.nrn} --samlyase {input.samlyase} --outdir {params.outdir} --locus {wildcards.cora_locus}
-        '''
-
-rule concatenate_cora_neighbourhoods:
-    input: aggregate_cora_neighbourhoods
-    output: base_path + "/52_cora_neighbour_analysis/cora_neighbours.tsv"
-    threads: thread_small
-    shell:
-        '''
-        awk '(NR == 1) || (FNR > 1)' {base_path}/52_cora_neighbour_analysis/*/neighbourhood_results.tsv > {output}
         '''
 
 rule crispr_locus_proteins:
@@ -1479,7 +1404,7 @@ rule unknown_finder:
         host_genomes_folder = base_path + "/06_host_genomes",
         cctyper_folder = base_path + "/07_cctyper",
         sample_folder = base_path + "/06_host_genomes/", #this is used to find the gff and proteins files that are strain-, not locus-specific
-        extra_cas_db = "/media/volume/st_andrews/databases/new_effectors_additional_cas/fastas/new_effectors_additional_cas.dmnd",
+        extra_cas_db = additional_cas_proteins + "/new_effectors_additional_cas.dmnd",
     conda: "envs/gff_utils.yaml"
     log:
         out = base_path + "/30_unknown_effectors/logs/{c}.out",
@@ -2007,13 +1932,13 @@ rule validated_new_effectors:
         hmm_rows = base_path + "/60_validated_new_effectors/{c}/{c}_validated_new_effectors_hmm.tsv"
     conda: "envs/hmmer.yaml"
     params:
-        validated_effectors_hmm_db = "/media/volume/st_andrews/databases/validated_new_effectors/concatenated_profiles/all.hmm",
+        validated_effectors_hmm_db = validated_effectors_hmm_db,
         temp_hmm = base_path + "/60_validated_new_effectors/{c}/{c}_validated_new_effectors.temp",
         evalue = "1e-10"
     log:
         out = base_path + "/60_validated_new_effectors/logs/{c}/{c}_validated_new_effectors.out",
         err = base_path + "/60_validated_new_effectors/logs/{c}/{c}_validated_new_effectors.err"
-    threads: thread_small
+    threads: thread_ultrasmall
     shell:
         '''
         hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.validated_effectors_hmm_db} {input.proteins} &> /dev/null
@@ -2054,8 +1979,8 @@ rule validated_new_effectors_analysis:
     params:
         outdir = base_path + "/61_validated_new_effectors_analysis/{c}",
         host_genomes_folder = base_path + "/06_host_genomes",
-        hmm_msa_folder = "/media/volume/st_andrews/databases/validated_new_effectors/profiles",
-        tmhmm_model_path = "/media/volume/st_andrews/new_effectors/TM/TMHMM2.0.model",
+        hmm_msa_folder = validated_effectors_folder + "/profiles",
+        tmhmm_model_path = TM_path + "/TMHMM2.0.model",
     conda: "envs/groupChar.yaml"
     log:
         out = base_path + "/61_validated_new_effectors_analysis/logs/{c}.out",
@@ -2148,16 +2073,16 @@ rule ring_nucleases:
         hmm_rows = base_path + "/70_ring_nucleases/{c}/{c}_ring_nucleases_hmm.tsv"
     conda: "envs/hmmer.yaml"
     params:
-        validated_effectors_hmm_db = "/media/volume/st_andrews/databases/ring_nucleases/concatenated_profiles/all.hmm",
+        rn_db = ring_nuclease_db,
         temp_hmm = base_path + "/70_ring_nucleases/{c}/{c}_ring_nucleases.temp",
         evalue = "1e-5"
     log:
         out = base_path + "/70_ring_nucleases/logs/{c}/{c}_ring_nucleases.out",
         err = base_path + "/70_ring_nucleases/logs/{c}/{c}_ring_nucleases.err"
-    threads: thread_small
+    threads: thread_ultrasmall
     shell:
         '''
-        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.validated_effectors_hmm_db} {input.proteins} &> /dev/null
+        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.rn_db} {input.proteins} &> /dev/null
         echo "Removing commented rows" >> {log.out}
         grep -v "^#" {params.temp_hmm} > {output.temp_rows} ||:
         echo "Writing header" >> {log.out}
@@ -2195,7 +2120,7 @@ rule ring_nucleases_analysis:
     params:
         outdir = base_path + "/71_ring_nucleases_analysis/{c}",
         host_genomes_folder = base_path + "/06_host_genomes",
-        hmm_msa_folder = "/media/volume/st_andrews/databases/ring_nucleases/profiles",
+        hmm_msa_folder = ring_nuclease_folder + "/profiles",
     conda: "envs/hmmer.yaml"
     log:
         out = base_path + "/71_ring_nucleases_analysis/logs/{c}.out",
@@ -2335,7 +2260,7 @@ rule ring_nuclease_cas10_fusions:
         hmm_rows = base_path + "/101_ring_fusions_cas10/ring_nuclease_cas10_hmm.tsv"
     conda: "envs/hmmer.yaml"
     params:
-        ring_nuclease_hmm_db = "/media/volume/st_andrews/databases/ring_nucleases/concatenated_profiles/all.hmm",
+        ring_nuclease_hmm_db = ring_nuclease_db,
         temp_hmm = base_path + "/101_ring_fusions_cas10/ring_nucleases_cas10.temp",
         evalue = "1e-10"
     log:
@@ -2363,7 +2288,7 @@ rule validated_effectors_cas10_fusions:
         hmm_rows = base_path + "/101_validated_effectors_cas10/validated_effectors_cas10_hmm.tsv"
     conda: "envs/hmmer.yaml"
     params:
-        validated_effectors_hmm_db = "/media/volume/st_andrews/databases/validated_new_effectors/concatenated_profiles/all.hmm",
+        validated_effectors_hmm_db = validated_effectors_hmm_db,
         temp_hmm = base_path + "/101_validated_effectors_cas10/ring_nucleases_cas10.temp",
         evalue = "1e-10"
     log:
@@ -2652,7 +2577,7 @@ rule groupCharacteriser:
         output_base = base_path + "/group4/group4",
         output_individual_fastas = base_path + "/group4/individual_fastas",
         pfams_temp = base_path + "/group4/group4.all.pfam.rawresults.txt.temp",
-        tmhmm_model = "/media/volume/st_andrews/new_effectors/TM/TMHMM2.0.model"
+        tmhmm_model = TM_path + "/TMHMM2.0.model"
     log:
         out = base_path + "/group4/logs/group4_characteriser.out",
         err = base_path + "/group4/logs/group4_characteriser.err"
@@ -2661,7 +2586,7 @@ rule groupCharacteriser:
     threads: thread_small
     shell:
         '''
-        python3 scripts/groupCharacteriser.py --input {input.group4_list} --unknown_proteins {input.unknown_proteins} --output_basename {params.output_base} --clustered_unknowns {output.clustered_unknowns} --individual_fastas_dir {params.output_individual_fastas} --tmhmm_model {params.tmhmm_model} --outputfolder {params.outdir} 2> {log.err} 1> {log.out}
+        python3 scripts/groupCharacteriser.py --input {input.group4_list} --unknown_proteins {input.unknown_proteins} --output_basename {params.output_base} --clustered_unknowns {output.clustered_unknowns} --individual_fastas_dir {params.output_individual_fastas} --tmhmm_model {params.tmhmm_model} --outputfolder {params.outdir} --pfam_db {pfam_db} --carfsaved_db {carfsaved_db}  2> {log.err} 1> {log.out}
         touch {output.individual_fastas_created}
         echo -e "{group4_pfam_headers}" > {output.group4_pfam}
         grep -v "#" {params.pfams_temp} >> {output.group4_pfam}
@@ -2677,8 +2602,7 @@ rule group4_PDB:
         hhsuite_concat = base_path + "/group4/pdb/group4_pdb.tsv",
     params:
         outdir = base_path + "/group4/pdb",
-        pdb70 = "/media/volume/st_andrews/databases/pdb/pdb70",
-        pdb30 = "/media/volume/st_andrews/databases/pdb30/pdb30",
+        pdb30 = pdb30_db,
     conda: "envs/hhsuite.yaml"
     threads: thread_hogger
     log:
@@ -2715,7 +2639,7 @@ rule group4_COGs:
         hhsuite_concat = base_path + "/group4/cog/group4_cog.tsv",
     params:
         outdir = base_path + "/group4/cog",
-        cogs = "/media/volume/st_andrews/databases/cog/COG_KOG/COG_KOG"
+        cogs = cogs_db
     conda: "envs/hhsuite.yaml"
     threads: thread_hogger
     log:
@@ -2736,7 +2660,7 @@ rule parse_hhsuite_group4_cog:
     conda: "envs/hhsuite.yaml"
     params:
         database = "COGs",
-        mapping = "/media/volume/st_andrews/databases/cog/COG_KOG/cog-20.def.tab"
+        mapping = cogs_db + "/cog-20.def.tab"
     threads: thread_small
     shell:
         '''
@@ -2958,7 +2882,6 @@ rule final:
         parse_hhsuite_cogs = rules.concatenate_cATyper_hmm_hhsuite_cogs.output,
         group4_pdb = rules.parse_hhsuite_group4_pdb.output,
         group4_cog = rules.parse_hhsuite_group4_cog.output,
-        cora_neighbourhood = rules.concatenate_cora_neighbourhoods.output,
         concatenate_validated_new_effectors_analysis = rules.concatenate_validated_new_effectors_analysis.output,
         heatmap_known_validated_effectors = rules.heatmap_known_validated_effectors.output.effector_scores_summary,
         node_graph = rules.node_graph.output.edges,
@@ -2978,43 +2901,36 @@ rule final:
     shell:
         '''
         touch {output}
-        mkdir -p /media/volume/st_andrews/new_effectors/{project}/R
-        mkdir -p /media/volume/st_andrews/new_effectors/{project}/R/effector_trees
+        mkdir -p {base_path}/R
+        mkdir -p {base_path}/R/effector_trees
 
-        mkdir -p /media/volume/st_andrews/new_effectors/{project}/R/effector_hmm
-        mkdir -p /media/volume/st_andrews/new_effectors/{project}/R/effector_hmm/pfam
-        mkdir -p /media/volume/st_andrews/new_effectors/{project}/R/effector_hmm/pdb
-        mkdir -p /media/volume/st_andrews/new_effectors/{project}/R/effector_hmm/cog
+        mkdir -p {base_path}/R/effector_hmm
+        mkdir -p {base_path}/R/effector_hmm/pfam
+        mkdir -p {base_path}/R/effector_hmm/pdb
+        mkdir -p {base_path}/R/effector_hmm/cog
 
-        mkdir -p /media/volume/st_andrews/new_effectors/{project}/R/group4
-        mkdir -p /media/volume/st_andrews/new_effectors/{project}/R/group4/pfam
-        mkdir -p /media/volume/st_andrews/new_effectors/{project}/R/group4/pdb
-        mkdir -p /media/volume/st_andrews/new_effectors/{project}/R/group4/cog
-        mkdir -p /media/volume/st_andrews/new_effectors/{project}/R/group4/carfsaved
+        mkdir -p {base_path}/R/group4
+        mkdir -p {base_path}/R/group4/pfam
+        mkdir -p {base_path}/R/group4/pdb
+        mkdir -p {base_path}/R/group4/cog
+        mkdir -p {base_path}/R/group4/carfsaved
         
-        cp /media/volume/st_andrews/new_effectors/{project}/12_Cas10_tree/cas10_tree.txt /media/volume/st_andrews/new_effectors/{project}/R
-        cp /media/volume/st_andrews/new_effectors/{project}/06_host_genomes/taxInfo.txt /media/volume/st_andrews/new_effectors/{project}/R
-        cp /media/volume/st_andrews/new_effectors/{project}/09_crispr_iii_CorA/loci/type_iii_info.tsv /media/volume/st_andrews/new_effectors/{project}/R
-        cp /media/volume/st_andrews/new_effectors/{project}/30_unknown_effectors/unknowns_info_loci.tsv /media/volume/st_andrews/new_effectors/{project}/R
-        cp /media/volume/st_andrews/new_effectors/{project}/13_effector_commonness/effector_commonness_master.tsv /media/volume/st_andrews/new_effectors/{project}/R
-        cp /media/volume/st_andrews/new_effectors/{project}/mastertable_v2.tsv /media/volume/st_andrews/new_effectors/{project}/R
+        cp {base_path}/12_Cas10_tree/cas10_tree.txt {base_path}/R
+        cp {base_path}/06_host_genomes/taxInfo.txt {base_path}/R
+        cp {base_path}/09_crispr_iii_CorA/loci/type_iii_info.tsv {base_path}/R
+        cp {base_path}/30_unknown_effectors/unknowns_info_loci.tsv {base_path}/R
+        cp {base_path}/13_effector_commonness/effector_commonness_master.tsv {base_path}/R
+        cp {base_path}/mastertable_v2.tsv {base_path}/R
 
-        cp -r /media/volume/st_andrews/new_effectors/{project}/45_effector_tree/* /media/volume/st_andrews/new_effectors/{project}/R/effector_trees
+        cp -r {base_path}/45_effector_tree/* {base_path}/R/effector_trees
 
-        cp -r /media/volume/st_andrews/new_effectors/{project}/43_effector_hmmer_analysis/*/*_sorted_filtered_mapped.tsv /media/volume/st_andrews/new_effectors/{project}/R/effector_hmm/pfam
-        cp -r /media/volume/st_andrews/new_effectors/{project}/42_effector_hhsuite/*/*_parsed.tsv /media/volume/st_andrews/new_effectors/{project}/R/effector_hmm/pdb
-        cp -r /media/volume/st_andrews/new_effectors/{project}/42_effector_hhsuite_cogs/*/*_parsed_cogs.tsv /media/volume/st_andrews/new_effectors/{project}/R/effector_hmm/cog
+        cp -r {base_path}/43_effector_hmmer_analysis/*/*_sorted_filtered_mapped.tsv {base_path}/R/effector_hmm/pfam
+        cp -r {base_path}/42_effector_hhsuite/*/*_parsed.tsv {base_path}/R/effector_hmm/pdb
+        cp -r {base_path}/42_effector_hhsuite_cogs/*/*_parsed_cogs.tsv {base_path}/R/effector_hmm/cog
         
-        cp -r /media/volume/st_andrews/new_effectors/{project}/group4/group4.CARFSAVED.info.tsv /media/volume/st_andrews/new_effectors/{project}/R/group4/carfsaved
-        cp -r /media/volume/st_andrews/new_effectors/{project}/group4/group4.pfam.info.tsv /media/volume/st_andrews/new_effectors/{project}/R/group4/pfam
-        cp -r /media/volume/st_andrews/new_effectors/{project}/group4/cog/group4_cog_parsed.tsv /media/volume/st_andrews/new_effectors/{project}/R/group4/cog
-        cp -r /media/volume/st_andrews/new_effectors/{project}/group4/pdb/group4_pdb_parsed.tsv /media/volume/st_andrews/new_effectors/{project}/R/group4/pdb
-        cp -r /media/volume/st_andrews/new_effectors/{project}/group4_prober/group4_prober_analysis.txt /media/volume/st_andrews/new_effectors/{project}/R/group4
-
-        mkdir -p /media/volume/st_andrews/new_effectors/{project}/R/cora_neighbourhood
-        cp -r /media/volume/st_andrews/new_effectors/{project}/52_cora_neighbour_analysis/cora_neighbours.tsv /media/volume/st_andrews/new_effectors/{project}/R/cora_neighbourhood
-        cp -r /media/volume/st_andrews/new_effectors/{project}/45_effector_tree/cora_tree.txt /media/volume/st_andrews/new_effectors/{project}/R/cora_neighbourhood
-        cp -r /media/volume/st_andrews/new_effectors/{project}/44_effector_alignments/cora.afa /media/volume/st_andrews/new_effectors/{project}/R/cora_neighbourhood
-        cp -r /media/volume/st_andrews/new_effectors/{project}/17_CorA_tree/CorA_tree.txt /media/volume/st_andrews/new_effectors/{project}/R/cora_neighbourhood
-        cp -r /media/volume/st_andrews/new_effectors/{project}/16_CorA_align/CorA_alignment.afa /media/volume/st_andrews/new_effectors/{project}/R/cora_neighbourhood
+        cp -r {base_path}/group4/group4.CARFSAVED.info.tsv {base_path}/R/group4/carfsaved
+        cp -r {base_path}/group4/group4.pfam.info.tsv {base_path}/R/group4/pfam
+        cp -r {base_path}/group4/cog/group4_cog_parsed.tsv {base_path}/R/group4/cog
+        cp -r {base_path}/group4/pdb/group4_pdb_parsed.tsv {base_path}/R/group4/pdb
+        cp -r {base_path}/group4_prober/group4_prober_analysis.txt {base_path}/R/group4
         '''
