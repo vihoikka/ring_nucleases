@@ -30,18 +30,27 @@ def guessEncoding(file):
 parser = argparse.ArgumentParser(description='Handle arguments for script')
 parser.add_argument('-i', '--infile', help='Input file (*.tsv)', required=True)
 parser.add_argument('-o', '--outfile', help='Output file', default='None')
-parser.add_argument('-d', '--database', help='Output file', default='None')
+parser.add_argument('-d', '--database', help='db file', default='None')
 parser.add_argument('-m', '--mapping', help="Tab separated file for mapping descriptions to IDs", required = False)
 
 args = parser.parse_args()
 
-df = pd.read_csv(args.infile, sep='\t', header = None)
-
 headers = ['query', 'target', 'matches_divided_by_tLen', 'alignment_length', 'mismatch', 'gapOpen', 'qstart', 'qend', 'tstart', 'tend', 'eval', 'score']
 
-#add the headers to df
-df.columns = headers
-print(df)
+infile = args.infile
+
+#if infile size > 0
+if os.path.getsize(infile) > 0:
+    print("File size over 0")
+    df = pd.read_csv(infile, sep='\t', header = None)
+    #add the headers to df
+    df.columns = headers
+    print(df)
+else:
+    print("File size 0. Generating empty df")
+    df = pd.DataFrame(columns=headers)
+    df.to_csv(args.outfile, sep="\t", index=False)
+    exit()
 
 #remove entries where eval is less than 0.001
 df = df[df['eval'] < 0.001]

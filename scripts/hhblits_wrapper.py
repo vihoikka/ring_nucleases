@@ -61,5 +61,5 @@ def run_hhblits(file):
         print(f"Processed file {file}")
 
 # You can adjust the max_workers parameter to match the number of cores you want to use.
-with concurrent.futures.ThreadPoolExecutor(max_workers=40) as executor:
+with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
     executor.map(run_hhblits, faa_files)

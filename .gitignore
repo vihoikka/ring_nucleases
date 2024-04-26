@@ -9,3 +9,7 @@ scripts/__pycache__/*
 unknown_proteins_to_blast.fasta
 logs
 logs/*
+test*
+FlaGs2/
+FlaGs2
+FlaGs2/*

@@ -23,6 +23,9 @@ mastertable = pd.read_csv(mastertable_path, sep='\t')
 mastertable['Visualisation_path'] = viz_dir_relative + "/" + mastertable['Locus'] + '/' + mastertable['Locus'] + '_viz.png'
 mastertable['Visualisation_table_path'] = viz_dir_relative + "/" + mastertable['Locus'] + '/' + mastertable['Locus'] + '_merged.csv'
 
+#print the columns of mastertable
+print(mastertable.columns)
+
 #tidy up the table by removing the following columns: Cas10, Cas5, Cas7, Cas10_GGDD, Cas10_GGDD_coord, Cas10_GGDD_seq, Cas10_GGDE_coord, Cas10_GGDE_seq, Cas10_HD, Cas10_HD_list, Cas10_DH, Cas10_HD_coord, Cas10_DH_coord, Cas10_coord, HD_E-value, unk_x, mem_x, locus_id, unk_y, unk01, sample
 mastertable = mastertable.drop(columns=['Cas10', 
                                         'Cas5', 
@@ -39,10 +42,10 @@ mastertable = mastertable.drop(columns=['Cas10',
                                         'Cas10_DH_coord', 
                                         'Cas10_coord', 
                                         'HD_E-value', 
-                                        'unk_x', 
-                                        'mem_x', 
+                                        #'unk_x', 
+                                        #'mem_x', 
                                         'locus_id', 
-                                        'unk_y', 
+                                        #'unk_y', 
                                         'ca3',
                                         'ca4',
                                         'ca6',
@@ -83,11 +86,11 @@ mastertable = mastertable[cols]
 mastertable_excel = mastertable.copy()
 
 #remove columns Visualisation_path, Visualisation_table_path, Visualisation_link
-mastertable_excel = mastertable_excel.drop(columns=['Visualisation_path', 'Visualisation_table_path'])
+#mastertable_excel = mastertable_excel.drop(columns=['Visualisation_path', 'Visualisation_table_path'])
 
 #save excel to same path as html but with .xlsx extension
-excel_out = output_html.replace('.html', '.xlsx')
-mastertable_excel.to_excel(excel_out, index=False)
+#excel_out = output_html.replace('.html', '.xlsx')
+#mastertable_excel.to_excel(excel_out, index=False)
 
 # Generate a separate HTML page for each image showing the picture
 for index, row in mastertable.iterrows():
@@ -97,8 +100,8 @@ for index, row in mastertable.iterrows():
     mastertable.loc[index, "Visualisation_link"] = pic_html_script
 
 # Replace path url to HTML hyperlinks
-for column in ['Visualisation_path', 'Visualisation_table_path']:
-     mastertable[column] = mastertable[column].apply(lambda x: f'<a href="{x}" target="_blank">Open</a>')
+#for column in ['Visualisation_path', 'Visualisation_table_path']:
+#     mastertable[column] = mastertable[column].apply(lambda x: f'<a href="{x}" target="_blank">Open</a>')
 
 # Create HTML table
 mastertable_to_html = mastertable.to_html(escape=False, index=False, classes = 'display dataTable" id = "table')

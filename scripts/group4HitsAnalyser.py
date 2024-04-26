@@ -4,6 +4,7 @@ import subprocess
 import sys
 import os
 from Bio import SeqIO
+#import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser()
 #args for input and output
@@ -89,14 +90,13 @@ query_counts.to_csv(output)
 
 #create a graph that on the x axis shows each query and on the y axis the number of times they appear in the blast results
 #this is to show the distribution of hits across the queries
-import matplotlib.pyplot as plt
-plt.bar(range(len(query_counts)), query_counts)
-plt.xticks(range(len(query_counts)), ordered_queries, rotation='vertical')
+#plt.bar(range(len(query_counts)), query_counts)
+#plt.xticks(range(len(query_counts)), ordered_queries, rotation='vertical')
 #tilt the axis labels to make them easier to read
-plt.tight_layout()
-plt.xlabel("Effector candidate")
-plt.ylabel("Number of hits")
-plt.title("Number of hits across loci per effector candidate")
+#plt.tight_layout()
+#plt.xlabel("Effector candidate")
+#plt.ylabel("Number of hits")
+#plt.title("Number of hits across loci per effector candidate")
 #save the plot
-plt.savefig(outpath + "/query_counts.png", bbox_inches='tight')
+#plt.savefig(outpath + "/query_counts.png", bbox_inches='tight')
 

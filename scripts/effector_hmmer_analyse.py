@@ -35,9 +35,31 @@ print(hmmscan_results)
 effector_sequences = SeqIO.parse(open(args.multifasta),'fasta')
 
 for record in effector_sequences:
-    print(record.id)
-    hmmscan_results = hmmscan_results.append({'target_name': "protein", 'target_accession': "protein", 'tlen': len(record.seq), 'query_name': record.id, 'accession': "protein", 'qlen': len(record.seq), 'E-value': 0.0, 'score': 0.0, 'bias': 0.0, '#': 0, 'of': 0, 'c-Evalue': 0.0, 'i-Evalue': 0.0, 'domain_score': 0.0, 'domain_bias': 0.0, 'hmm_start': 0, 'hmm_end': 0, 'ali_start': 1, 'ali_end': len(record.seq), 'env_from': 0, 'env_to': 0, 'acc': 0.0, 'description of target': "protein"}, ignore_index=True)
-
+    new_row = pd.DataFrame({'target_name': ["protein"], 
+                            'target_accession': ["protein"], 
+                            'tlen': [len(record.seq)], 
+                            'query_name': [record.id], 
+                            'accession': ["protein"], 
+                            'qlen': [len(record.seq)], 
+                            'E-value': [0.0], 
+                            'score': [0.0], 
+                            'bias': [0.0], 
+                            '#': [0], 
+                            'of': [0], 
+                            'c-Evalue': [0.0], 
+                            'i-Evalue': [0.0], 
+                            'domain_score': [0.0], 
+                            'domain_bias': [0.0], 
+                            'hmm_start': [0], 
+                            'hmm_end': [0], 
+                            'ali_start': [1], 
+                            'ali_end': [len(record.seq)], 
+                            'env_from': [0], 
+                            'env_to': [0], 
+                            'acc': [0.0], 
+                            'description of target': ["protein"]})
+    
+    hmmscan_results = pd.concat([hmmscan_results, new_row], ignore_index=True)
 # Sort rows by i-evalue in descending order
 df_sorted = hmmscan_results.sort_values(by=['target_name', 'i-Evalue'], ascending=[True, True])
 print(df_sorted)

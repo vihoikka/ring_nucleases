@@ -67,6 +67,7 @@ parser.add_argument("-hm", "--hmm", help="hmm", required = True)
 parser.add_argument("-o", "--outputfolder", help="outputfolder", required = True)
 parser.add_argument("-i", "--info_out", help="info_out", required = True)
 parser.add_argument("-u", "--unknown_proteins_output", help="unknown_proteins", required = True)
+parser.add_argument("-u", "--unknown_proteins_output_150", help="unknown_proteins ring nucleases", required = True)
 parser.add_argument("-hg", "--host_genomes_folder", help="host_genomes_folder", required = True)
 parser.add_argument("-cp", "--cctyper_path", help="cctyper_path", required = True)
 parser.add_argument("-sa", "--sample_folder", help="sample_folder", required = True)
@@ -81,6 +82,7 @@ hmm = args.hmm
 outputfolder = args.outputfolder
 info_out = args.info_out
 unknown_proteins_output = args.unknown_proteins_output
+unknown_proteins_output_150 = args.unknown_proteins_output_150
 host_genomes_folder = args.host_genomes_folder
 cctyper_path = args.cctyper_path
 sample_folder = args.sample_folder
@@ -215,6 +217,7 @@ gene_search_range = 200 #how far from the cctyper coordinate are we looking for 
 #find proteins that contain the string "unk" (case insensitive) in the column "Genes" and create a new unknown_protein object for each of these
 #note that the column "Genes" is a list in string format
 unknown_proteins = []
+unknown_proteins_150 = []
 for index, row in cctyper_df.iterrows():
     #loop through the list in the "Genes" column using enumerate to get the index of each element
     for i, gene in enumerate(row["Genes"]):
@@ -244,6 +247,8 @@ for index, row in cctyper_df.iterrows():
             if additional_cas_check == False:
                 unknown_protein_object = unknown_protein(row["locus_id"], row["sample"], seq, length, row["E-values"][i], row["Positions"][i], row["locus_id"] + "_" + str(row["Positions"][i]), gene)
                 unknown_proteins.append(unknown_protein_object)
+                if length < ring_nuclease_length_cutoff:
+                    unknown_proteins_150.append(unknown_protein_object)
 
             #append the object to the list unknown_proteins
 
@@ -251,6 +256,12 @@ for index, row in cctyper_df.iterrows():
 #write the unknown_proteins to a fasta file
 with open(unknown_proteins_output, "w") as f:
     for protein in unknown_proteins:
+        f.write(">" + protein.id + "\n")
+        f.write(str(protein.sequence) + "\n")
+
+#write the < 150 AA unknown_proteins to a fasta file
+with open(unknown_proteins_output_150, "w") as f:
+    for protein in unknown_proteins_150:
         f.write(">" + protein.id + "\n")
         f.write(str(protein.sequence) + "\n")
 
@@ -275,3 +286,5 @@ unknown_protein_object = locus_unknown_info(locus_id, sample, unknown_proteins_c
 unknown_protein_df = pd.DataFrame([unknown_protein_object.to_dict()])
 #write the dataframe to a csv file
 unknown_protein_df.to_csv(output_locus_info, index=False, sep = "\t", header=False)
+
+#write a version where all effectors over 150 AA are excluded

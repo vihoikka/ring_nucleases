@@ -181,7 +181,7 @@ if mode == "post_hmm":
 
     #construct dictionaries for different types of cOAs
     cOA_dict_binary = {"ca3":False, "ca4":False, "ca5":False, "ca6":False, "sam-amp":False, "unk":False, "val": False, "mem": False, "rng": False} #TODO MODIFY WHEN ADDING NEW EFFECTORS
-    effector_dict = {"ca3":0, "ca4":0, "ca5":0, "ca6":0, "sam-amp": 0, "unk": 0, "val": 0, "rng": 0, "mem": 0} #TODO MODIFY WHEN ADDING NEW EFFECTORS
+    effector_dict = {"ca3":0, "ca4":0, "ca5":0, "ca6":0, "sam-amp": 0, "unk": 0, "val": 0, "rng": 0, "mem": 0, "ae1": 0} #TODO MODIFY WHEN ADDING NEW EFFECTORS
 
     #check if hmm result exists
     print("Checking if hmm result exists")
@@ -287,6 +287,11 @@ if mode == "post_hmm":
                 #the actual effector is fetched splitting by # and get ting second hit, and splitting it by _ and getting first hit. For example, the name could be ca6_csm6-ca6_italicus#csm6-ca6
                 split_hashtag = re.split('#', row["target_name"]) #split_hashtag becomes ['ca6_csm6-ca6_italicus', 'csm6-ca6_clustered_aligned']
                 precise_hit = re.split("_", split_hashtag[1])[0] #precise_hit becomes csm6-ca6
+
+                if ring_nuclease == "True": #if we are running catyper_prepper10 in run_ring_nuclease mode
+                    print("...Ring nuclease detected")
+                    hit_type = "rng"
+                    precise_hit = re.split("_", row["target_name"])[0]
 
                 if precise_hit == "cam1":
                     #for cam1 we need to an additional check to see if it has a transmembrane domain
