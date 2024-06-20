@@ -16,6 +16,8 @@ parser.add_argument('-hg', '--host_genomes_folder', help='host genomes folder', 
 parser.add_argument('-v', '--validated_effectors', help='validated effectors', required=True)
 parser.add_argument('-cc', '--cctyper_protein_table', help='cctyper plottable table', required=True)
 parser.add_argument('-k', '--known_effector_table', help='known effectors', required=True)
+parser.add_argument('-rn', '--ring_nucleases', help='ring nucleases', required=True)
+
 args = parser.parse_args()
 
 #generate bash command for the above
@@ -30,14 +32,20 @@ cctyper_folder = args.cctyper_folder
 validated_effectors = args.validated_effectors
 cctyper_protein_table = args.cctyper_protein_table
 known_effector_table = args.known_effector_table
+ring_nucleases_table = args.ring_nucleases
 
 validated_effectors = pd.read_csv(validated_effectors, sep = "\t", header = 0)
 cctyper_protein_table = pd.read_csv(cctyper_protein_table, sep = "\t", header = 0)
 known_effector_table = pd.read_csv(known_effector_table, sep = "\t", header = 0)
+ring_nucleases_table = pd.read_csv(ring_nucleases_table, sep = "\t", header = 0)
+
+#from cctyper_protein_table, remove columns start	end	annotation_gff	annotation_cctyper	strand	evalue	sequence
+cctyper_protein_table = cctyper_protein_table.drop(columns = ["start", "end", "annotation_gff", "annotation_cctyper", "strand", "evalue", "sequence"])
 
 #merge all three tables by id
-merged = validated_effectors.merge(cctyper_protein_table, on = "protein_id", how = "outer")
-merged = merged.merge(known_effector_table, on = "protein_id", how = "outer")
+merged = validated_effectors.merge(cctyper_protein_table, on="protein_id", how="outer", suffixes=("_validated", "_cctyper"))
+merged = merged.merge(known_effector_table, on="protein_id", how="outer", suffixes=("", "_known"))
+merged = merged.merge(ring_nucleases_table, on="protein_id", how="outer", suffixes=("", "_ring"))
 
 #when looking for effectors in the locus, the effector search range is the number of bases up or downstream of the cctyper defined cas operon boundaries
 effector_search_range = 4000
@@ -164,6 +172,8 @@ for index, row in cctyper_protein_table.iterrows():
 
 
 # similarly add features from known_effector_table
+#first, print all columns of known_effector_table
+print(known_effector_table.columns)
 for index, row in known_effector_table.iterrows():
     if row["locus"] == locus:
         graphic_feature = GraphicFeature(
@@ -174,6 +184,20 @@ for index, row in known_effector_table.iterrows():
             label = row["effector"]
         )
         print("graphic feature from known effectors: " + str(graphic_feature))
+        features_list.append(graphic_feature)
+
+# similarly add features from ring_nucleases_table
+print(ring_nucleases_table.columns)
+for index, row in ring_nucleases_table.iterrows():
+    if row["locus"] == locus:
+        graphic_feature = GraphicFeature(
+            start = int(row["start"])-cas_operon_start,
+            end = int(row["end"])-cas_operon_start,
+            strand = strand_dict[row["strand"]], #need to convert + and - to 1 and -1
+            color = "#ccc923",
+            label = row["effector"]
+        )
+        print("graphic feature from ring nucleases: " + str(graphic_feature))
         features_list.append(graphic_feature)
 
 # finally add the CRISPR-Cas range

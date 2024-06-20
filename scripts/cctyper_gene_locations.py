@@ -103,7 +103,7 @@ def getGeneObject(gff, proteins, contig, start, end, strand):
     print("Chose the longest protein candidate at index " + str(longest_protein_index) + " with length: " + str(protein_candidates[longest_protein_index]) + " bp")
     #assign this protein object to the variable "protein_object"
     protein_object = protein_objects[longest_protein_index]
-
+    
     strand_dict = {"+": "1", "-": "-1"}
 
     print(protein_object.attributes)
@@ -177,14 +177,31 @@ for key, value in genes_positions_dict.items():
                 gene_object = getGeneObject(gff, proteins, cas_operons["Contig"][0], start, end, strand)
                 #find the sequence from the fasta file
                 sequence = protein_sequences[gene_object["protein_id"]].seq
-                output_df = output_df.append({"protein_id":gene_object["protein_id"], "start_cctyper":gene_object["start"], "end_cctyper":gene_object["end"], "annotation_gff_cctyper":gene_object["product"], "annotation_cctyper_cctyper": gene_name, "strand_cctyper":gene_object["strand"], "evalue_cctyper": evalue,"sequence_cctyper": sequence}, ignore_index=True)
+                output_df = pd.concat([output_df, pd.DataFrame({"protein_id": [gene_object["protein_id"]],
+                                                                "start_cctyper": [gene_object["start"]],
+                                                                "end_cctyper": [gene_object["end"]],
+                                                                "annotation_gff_cctyper": [gene_object["product"]],
+                                                                "annotation_cctyper_cctyper": [gene_name],
+                                                                "strand_cctyper": [gene_object["strand"]],
+                                                                "evalue_cctyper": [evalue],
+                                                                "sequence_cctyper": [sequence]})],
+                                    ignore_index=True)
             #if not, then just add it without linking it to any gene
             except:
                 print("Error when mapping gene coordinates: " + str(traceback.print_exc()))
                 print("Could not find gene " + value[0] + " in range: " + str(start) + "-" + str(end))
                 print("Will add CCTyper protein as is")
                 strand = strand_dict[strand]
-                output_df = output_df.append({"protein_id": protein_id, "start_cctyper":start, "end_cctyper":end, "annotation_gff_cctyper":"-", "annotation_cctyper_cctyper": gene_name, "strand_cctyper":strand, "evalue_cctyper": evalue, "sequence_cctyper": "-"}, ignore_index=True)
+                output_df = pd.concat([output_df, pd.DataFrame({"protein_id": [protein_id],
+                    "start_cctyper": [start],
+                    "end_cctyper": [end],
+                    "annotation_gff_cctyper": ["-"],
+                    "annotation_cctyper_cctyper": [gene_name],
+                    "strand_cctyper": [strand],
+                    "evalue_cctyper": [evalue],
+                    "sequence_cctyper": ["-"]})],
+                    ignore_index=True)
+
 
         else:
             #break the for loop and continue to the next gene

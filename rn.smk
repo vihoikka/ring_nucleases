@@ -12,6 +12,7 @@ thread_ultrasmall = 1 #for single-thread wildcard based rules
 ncbi_email = "ville.hoikkala@jyu.fi"
 
 local_protein_blast_db = "/mnt/shared/apps/databases/ncbi/nr"
+rn_diamond_db = "/home/vhoikkal/scratch/private/databases/custom_hmm/ring_nucleases/diamond_fastas/renamed_headers/RN_diamond_db.dmnd"
 
 base_path = "/home/vhoikkal/scratch/private/runs/ring_nucleases" + "/" + project
 program_root = "/home/vhoikkal/scratch/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder"
@@ -317,6 +318,11 @@ def aggregate_unknowns_locus_info(wildcards):
     checkpoint_output = checkpoints.type_iii_wildcarder.get(**wildcards).output[0]
     cvals = glob_wildcards(os.path.join(checkpoint_output,"{c}/cas_operons.tsv")).c
     return expand(base_path + "/30_unknown_effectors/{c}/{c}_locus_unknown_info.tsv", c=cvals)
+
+def aggregate_csx19(wildcards):
+    checkpoint_output = checkpoints.type_iii_wildcarder.get(**wildcards).output[0]
+    cvals = glob_wildcards(os.path.join(checkpoint_output,"{c}/cas_operons.tsv")).c
+    return expand(base_path + "/110_csx19/{c}/{c}_csx19.faa", c=cvals)
 
 def aggregate_crispr_locus_proteins(wildcards):
     '''
@@ -2110,7 +2116,7 @@ rule ring_nucleases:
     params:
         rn_db = ring_nuclease_db,
         temp_hmm = base_path + "/70_ring_nucleases/{c}/{c}_ring_nucleases.temp",
-        evalue = "1e-5"
+        evalue = "1e-8"
     log:
         out = base_path + "/70_ring_nucleases/logs/{c}/{c}_ring_nucleases.out",
         err = base_path + "/70_ring_nucleases/logs/{c}/{c}_ring_nucleases.err"
@@ -2226,7 +2232,7 @@ rule heatmap_ring_nucleases:
     input:
         ring_nuclease_etp = rules.concatenate_ring_nucleases_scores.output.effector_to_protein_concatenated
     output:
-        effectors_combined = base_path + "/72_ring_nucleases_heatmap/etp_combined.tsv",
+        #effectors_combined = base_path + "/72_ring_nucleases_heatmap/etp_combined.tsv",
         effector_scores_summary = base_path + "/72_ring_nucleases_heatmap/effectors.tsv",
     params:
         outdir = base_path + "/72_ring_nucleases_heatmap",
@@ -2239,6 +2245,74 @@ rule heatmap_ring_nucleases:
     shell:
         '''
         python scripts/catyper_effector_scores.py --etp {input.ring_nuclease_etp} --output {params.dummyout} --output_summary {output.effector_scores_summary} --outdir {params.outdir} 2> {log.err} 1> {log.out}
+        '''
+
+rule crn4_aligner:
+    '''
+    Crn4 refers to Csx15, 16 and 20 (a, b, c). These are structurally almost identical proteins,
+    but sequence-wise quite diverged. Here we align them by aa sequence
+    and create tree in subsequent rule.
+
+    We concatenate the sequences of the three proteins and align them with muscle.
+
+    Crn1 is used as outgroup. Csx14 added for now too (21.5.2024)
+    '''
+    input: rules.concatenate_ring_nucleases_analysis.output #this is just a trigger to start rule
+    output: base_path + "/74_crn4_align/crn4_alignment.afa",
+    conda: "envs/trees.yaml"
+    log:
+        out = base_path + "/74_crn4_align/logs/crn4_align.out",
+        err = base_path + "/74_crn4_align/logs/crn4_align.err"
+    threads: thread_hogger
+    params:
+        concatenated_crn4_seqs = base_path + "/74_crn4_align/crn4_concatenated.faa",
+        base_folder = base_path + "/71_ring_nucleases_analysis",
+        csx14_renamed = base_path + "/74_crn4_align/csx14_renamed.faa",
+        csx14_orig = base_path + "/74_crn4_align/csx14_orig.faa",
+        csx15_renamed = base_path + "/74_crn4_align/csx15_renamed.faa",
+        csx15_orig = base_path + "/74_crn4_align/csx15_orig.faa",
+        csx16_renamed = base_path + "/74_crn4_align/csx16_renamed.faa",
+        csx16_orig = base_path + "/74_crn4_align/csx16_orig.faa",
+        csx20_renamed = base_path + "/74_crn4_align/csx20_renamed.faa",
+        csx20_orig = base_path + "/74_crn4_align/csx20_orig.faa",
+        crn1_renamed = base_path + "/74_crn4_align/crn1_renamed.faa",
+        crn1_orig = base_path + "/74_crn4_align/crn1_orig.faa"
+    shell:
+        '''
+        cat {params.base_folder}/*/csx20.faa > {params.csx20_orig}
+        cat {params.base_folder}/*/csx14.faa > {params.csx14_orig}
+        cat {params.base_folder}/*/csx15.faa > {params.csx15_orig}
+        cat {params.base_folder}/*/csx16.faa > {params.csx16_orig}
+        cat {params.base_folder}/*/crn1.faa > {params.crn1_orig}
+
+        python scripts/crn4_header_renamer.py --input {params.csx20_orig} --output {params.csx20_renamed} --prefix "csx20"
+        python scripts/crn4_header_renamer.py --input {params.csx14_orig} --output {params.csx14_renamed} --prefix "csx14"
+        python scripts/crn4_header_renamer.py --input {params.csx15_orig} --output {params.csx15_renamed} --prefix "csx15"
+        python scripts/crn4_header_renamer.py --input {params.csx16_orig} --output {params.csx16_renamed} --prefix "csx16"
+        python scripts/crn4_header_renamer.py --input {params.crn1_orig} --output {params.crn1_renamed} --prefix "crn1"
+
+        cat {params.csx14_renamed} {params.csx15_renamed} {params.csx16_renamed} {params.csx20_renamed} {params.crn1_renamed} > {params.concatenated_crn4_seqs}
+        
+        muscle -super5 "{params.concatenated_crn4_seqs}" -output "{output}" -threads {threads} 2> {log.err} 1> {log.out}
+        '''
+
+rule crn4_tree:
+    '''
+    '''
+    input: rules.crn4_aligner.output
+    output:
+        tree1 = base_path + "/75_crn4_tree/crn4_tree1.txt",
+        tree2 = base_path + "/75_crn4_tree/crn4_tree2.txt",
+        tree3 = base_path + "/75_crn4_tree/crn4_tree3.txt",
+        tree4 = base_path + "/75_crn4_tree/crn4_tree4.txt"
+    conda: "envs/trees.yaml"
+    threads: thread_hogger
+    shell:
+        '''
+        FastTree -wag -gamma {input} > {output.tree1}
+        FastTree -wag -gamma {input} > {output.tree2}
+        FastTree -wag -gamma {input} > {output.tree3}
+        FastTree -wag -gamma {input} > {output.tree4}
         '''
 
 rule ring_nucleases_fusions:
@@ -2285,9 +2359,12 @@ rule ring_fusions:
     output:
         ring_fusions = base_path + "/100_ring_fusions/ring_fusions.tsv"
     threads: thread_ultrasmall
+    log:
+        out = base_path + "/100_ring_fusions/logs/ring_fusions.out",
+        err = base_path + "/100_ring_fusions/logs/ring_fusions.err"
     shell:
         '''
-        python scripts/ring_fusions.py --known_effectors {input.known_effectors} --validated_new_effectors {input.validated_new_effectors} --ring_nucleases {input.ring_nucleases} --output {output.ring_fusions}
+        python scripts/ring_fusions.py --known_effectors {input.known_effectors} --validated_new_effectors {input.validated_new_effectors} --ring_nucleases {input.ring_nucleases} --output {output.ring_fusions} 2> {log.err} 1> {log.out}
         '''
 
 rule ring_nuclease_cas10_fusions:
@@ -2459,7 +2536,7 @@ rule mastercombiner:
         #### RING NUCLEASE PREP ####
         ring_nucleases_df["has_ring_nuclease"] = False
         #if any of the following are true, set has_ring_nuclease to True
-        ring_nucleases_df.loc[ring_nucleases_df[["ae1", "crn1", "crn2", "crn3", "csx15", "csx16", "csx20", "unk01"]].any(axis = 1), "has_ring_nuclease"] = True
+        ring_nucleases_df.loc[ring_nucleases_df[["ae1-1", "ae1-2", "crn1", "crn2", "crn3", "csx15", "csx16", "csx20", "unk01", "phrogRN", "proteaseRN", "solosavedRN"]].any(axis = 1), "has_ring_nuclease"] = True
 
         #drop ca4, ca4, ca6 sam-amp and unk from ring_nucleases
         ring_nucleases_df = ring_nucleases_df.drop(columns = ["ca3", "ca4", "ca5", "ca6", "sam-amp", "unk", "mem", "no_effectors"])
@@ -3259,6 +3336,7 @@ rule locus_visualiser:
         cctyper_plottable = rules.cctyper_gene_locations.output.cctyper_gene_locations_plottable,
         plottable_effector_positions = rules.validated_new_effectors_analysis.output.plottable_effector_positions,
         known_effectors = rules.cATyper_analysis.output.plottable_effector_positions,
+        ring_nucleases = rules.ring_nucleases_analysis.output.plottable_effector_positions
     output:
         visualisation = base_path + "/90_locus_viz/{c}/{c}_viz.png"
     conda:
@@ -3273,7 +3351,7 @@ rule locus_visualiser:
     threads: thread_ultrasmall
     shell:
         '''
-        python scripts/locus_visualiser.py --locus {wildcards.c} --cas_operons_file {input.crispr_positive_samples} --output_folder {params.outdir} --host_genomes_folder {params.host_genomes_folder} --cctyper_folder {params.cctyper_folder} --validated_effectors {input.plottable_effector_positions} --cctyper_protein_table {input.cctyper_plottable} --known_effector_table {input.known_effectors}  2> {log.err} 1> {log.out}
+        python scripts/locus_visualiser.py --locus {wildcards.c} --cas_operons_file {input.crispr_positive_samples} --output_folder {params.outdir} --host_genomes_folder {params.host_genomes_folder} --cctyper_folder {params.cctyper_folder} --validated_effectors {input.plottable_effector_positions} --cctyper_protein_table {input.cctyper_plottable} --known_effector_table {input.known_effectors} --ring_nucleases {input.ring_nucleases}  2> {log.err} 1> {log.out}
         '''
 
 rule concatenate_locus_viz:
@@ -3330,6 +3408,920 @@ rule casR_clustering:
         cd-hit -i {output.concatenated_casR} -o {output.clustered_CasR} -c {params.cutoff} -n {params.n} -d 0 -M 16000 -T {threads}
         '''
 
+rule csx19_finder:
+    '''
+    Csx19-labeled genes from cctyper might be ring nucleases in cA3 loci.
+    This script uses a modified version of the rule unknown_finder.py to find these genes and
+    extract them for further study.
+
+    If this works OK, consider generalising this rule to any gene of interest. Now just hardcode Csx19.
+    '''
+    input:
+        cctyper = base_path + "/071_cctyper_loci/{c}/cas_operons.tsv",
+        hmm = rules.cATyper_hmm_search.output.temp_rows
+    output:
+        csx19_proteins = base_path + "/110_csx19/{c}/{c}_csx19.faa",
+        info = base_path + "/110_csx19/{c}/{c}_csx19.tsv", #each row is a protein
+        locus_info = base_path + "/110_csx19/{c}/{c}_csx19_info.tsv", #each row is a locus
+    params:
+        outputfolder = base_path + "/110_csx19/{c}",
+        host_genomes_folder = base_path + "/06_host_genomes",
+        cctyper_folder = base_path + "/07_cctyper",
+        sample_folder = base_path + "/06_host_genomes/", #this is used to find the gff and proteins files that are strain-, not locus-specific
+        extra_cas_db = additional_cas_proteins + "/new_effectors_additional_cas.dmnd",
+    conda: "envs/gff_utils.yaml"
+    log:
+        out = base_path + "/110_csx19/logs/{c}.out",
+        err = base_path + "/110_csx19/logs/{c}.err"
+    threads: thread_ultrasmall
+    shell:
+        '''
+        python3 scripts/csx19_finder.py --locus_id {wildcards.c} --cctyper {input.cctyper} --hmm {input.hmm} --additional_cas_db {params.extra_cas_db} --outputfolder {params.outputfolder} --info_out {output.info} --unknown_proteins_output {output.csx19_proteins} --host_genomes_folder {params.host_genomes_folder} --cctyper_path {params.cctyper_folder} --sample_folder {params.sample_folder} --output_locus_info {output.locus_info} 2> {log.err} 1> {log.out}
+        touch {output.csx19_proteins}
+        touch {output.info}
+        '''
+
+rule concatenate_csx19:
+    input: aggregate_csx19
+    output:
+        proteins = base_path + "/110_csx19/csx19s.faa",
+        info = base_path + "/110_csx19/csx19_info.tsv"
+    threads: thread_ultrasmall
+    shell:
+        '''
+        find '{base_path}/110_csx19' -maxdepth 2 -type f -wholename '*/*_csx19.faa' -print0 | xargs -0 cat >> {output.proteins}
+        echo "locus_id\tsample\tsequence\tlength\tevalue\tposition\tid\tcctyper" > {output.info}
+        find '{base_path}/110_csx19' -maxdepth 2 -type f -wholename '*/*_csx19_info.tsv' -print0 | xargs -0 cat >> {output.info}
+        '''
+
+
+#### Phage genomes ####
+millard_fa = "/mnt/shared/scratch/vhoikkal/private/databases/millard_phages/4May2024_genomes.fa"
+millard_proteins = "/mnt/shared/scratch/vhoikkal/private/databases/millard_phages/4May2024_vConTACT2_proteins.faa"
+millard_metadata = "/mnt/shared/scratch/vhoikkal/private/databases/millard_phages/4May2024_data.tsv"
+
+def aggregate_millard_phage_RN_analysis(wildcards):
+    '''
+    This function is used to aggregate the outputs of the millard_phage_RN_analysis rule.
+    If not working, create a checkpoint to generate wildcards first.
+    '''
+    checkpoint_output = checkpoints.divide_millard_phages_to_folders.get(**wildcards).output[0]
+    cvals = glob_wildcards(os.path.join(checkpoint_output,"{phage}/done.txt")).phage
+    return expand(base_path + "/P3_hmm_analysis/{phage}/{phage}_cATyper_results.tsv", phage=cvals)
+
+
+checkpoint divide_millard_phages_to_folders:
+    '''
+    Takes in the genome Millard genomes.fa file and creates a folder and fasta for each phage in the fasta.
+    The headers are in the format >phage_name description. We only want to keep the phage_name for the folder.
+    '''
+    output: directory(base_path + "/P1_genomes")
+    input:
+        millard_fa = millard_fa, #nt multifasta of all phage genomes
+        millard_proteins = millard_proteins #aa multifasta of all phage genones. Headers are >phage_name_runningnumber
+    params:
+        outdir = base_path + "/P1_genomes",
+    threads: thread_ultrasmall
+    run:
+        from Bio import SeqIO
+        import os
+        print("Starting divide_millard_phages_to_folders")
+        
+        # Create a dictionary to store sequences for each phage
+        phage_sequences = {}
+        phage_protein_sequences = {}
+        
+        # Parse the millard_fa file and store sequences in the dictionary
+        for record in SeqIO.parse(input.millard_fa, "fasta"):
+            phage_name = record.id.split(" ")[0]
+            if phage_name not in phage_sequences:
+                phage_sequences[phage_name] = []
+            phage_sequences[phage_name].append(record)
+        
+        # Parse the millard_proteins file and store sequences in the dictionary
+        for record in SeqIO.parse(input.millard_proteins, "fasta"):
+            phage_name = record.id.split("_")[0]
+            if phage_name not in phage_protein_sequences:
+                phage_protein_sequences[phage_name] = []
+            phage_protein_sequences[phage_name].append(record)
+        
+        # Write sequences to files for each phage
+        for phage_name, sequences in phage_sequences.items():
+            phage_dir = f"{params.outdir}/{phage_name}"
+            os.makedirs(phage_dir, exist_ok=True)
+            
+            # Write nucleotide sequences to file
+            with open(f"{phage_dir}/{phage_name}.fna", "w") as out:
+                SeqIO.write([seq for seq in sequences if seq.id.split(" ")[0] == phage_name], out, "fasta")
+            
+        for phage_name, sequences in phage_protein_sequences.items():
+            phage_dir = f"{params.outdir}/{phage_name}"
+            os.makedirs(phage_dir, exist_ok=True)
+
+            # Write protein sequences to file
+            with open(f"{phage_dir}/{phage_name}_proteins.faa", "w") as out:
+                SeqIO.write([seq for seq in sequences if seq.id.split("_")[0] == phage_name], out, "fasta")
+            
+            # Write a "done" file in every phage folder
+            with open(f"{phage_dir}/done.txt", "w") as out:
+                out.write("done")
+
+rule millard_phage_RN:
+    '''
+    Searches for ring nucleases in the Millard phage proteomes using HMMER and
+    our pre-made RN hmm profiles similar to rule ring_nucleases
+    '''
+    input:
+        phage_proteins = base_path + "/P1_genomes/{phage}/{phage}_proteins.faa"
+    output:
+        temp_rows = base_path + "/P2_hmm/{phage}/{phage}_RN_temp.tsv",
+        hmm_rows = base_path + "/P2_hmm/{phage}/{phage}_RN_hmm.tsv"
+    params:
+        rn_db = ring_nuclease_db,
+        evalue = "1e-8",
+        temp_hmm = base_path + "/P2_hmm/{phage}/{phage}_RN_hmm.temp"
+    conda: "envs/hmmer.yaml"
+    threads: thread_ultrasmall
+    log:
+        out = base_path + "/P2_hmm/{phage}/logs/RN_search.out",
+        err = base_path + "/P2_hmm/{phage}/logs/RN_search.err"
+    shell:
+        '''
+        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.rn_db} {input.phage_proteins} &> /dev/null
+        echo "Removing commented rows" >> {log.out}
+        grep -v "^#" {params.temp_hmm} > {output.temp_rows} ||:
+        echo "Writing header" >> {log.out}
+        echo -e 'target_name\taccession\ttlen\tquery_name\taccession\tqlen\tE-value_fullseq\tscore_fullseq\tbias_fullseq\t#_domain\tof_domain\tc-Evalue_domain\ti-Evalue_domain\tscore_domain\tbias_domain\t_hmm_from\thmm_to\t_ali_from\tali_to\tenv_from\tenv_to\tacc\tdescription' > {output.hmm_rows}
+        echo "Checking if hits were found" >> {log.out}
+        if [ -s {output.temp_rows} ]; then 
+            echo "Hits found for {wildcards.phage}" >> {log.out}
+            cat {output.temp_rows} >> {output.hmm_rows}
+        else
+            echo "No hits found for {wildcards.phage}" >> {log.out}
+            touch {output.hmm_rows}
+        fi
+        '''
+
+rule millard_phage_RN_analysis:
+    '''
+    Analyses the ring nuclease hits in the Millard phage proteomes by reusing some code from rule ring_nucleases_analysis
+    and phage-specific scripts too.
+    '''
+    input:
+        hmm_rows = rules.millard_phage_RN.output.hmm_rows,
+        proteins = base_path + "/P1_genomes/{phage}/{phage}_proteins.faa"
+    output:
+        catyper = base_path + "/P3_hmm_analysis/{phage}/{phage}_cATyper_results.tsv",
+        hmm_targets = base_path + "/P3_hmm_analysis/{phage}/{phage}_RN_hmm_targets.tsv",
+        effector_to_protein = base_path + "/P3_hmm_analysis/{phage}/{phage}_effector_to_protein.tsv",
+        protein_to_effector = base_path + "/P3_hmm_analysis/{phage}/{phage}_protein_to_effector.tsv",
+        plottable_effector_positions = base_path + "/P3_hmm_analysis/{phage}/{phage}_plottable_effector_positions.tsv",
+    params:
+        outdir = base_path + "/P3_hmm_analysis/{phage}",
+        hmm_msa_folder = ring_nuclease_folder + "/profiles"
+    conda: "envs/hmmer.yaml"
+    threads: thread_ultrasmall
+    log:
+        out = base_path + "/P3_hmm_analysis/{phage}/logs/RN_analysis.out",
+        err = base_path + "/P3_hmm_analysis/{phage}/logs/RN_analysis.err"
+    shell:
+        '''
+        echo "Running ring nuclease analysis for phages" >> {log.out}
+        echo "Listing targets" >> {log.out}
+        ls {params.hmm_msa_folder}/*/*.hmm > {output.hmm_targets}
+        python scripts/phage_RN_analyzer.py --sample {wildcards.phage} --output_folder {params.outdir} --proteins_fasta {input.proteins} --hmm_targets {output.hmm_targets} --hmm_rows {input.hmm_rows} --catyper_out {output.catyper} --catyper_type "ring_nucleases" --effector_plot_data {output.plottable_effector_positions} --ring_nuclease True 2> {log.err} 1> {log.out}
+        '''
+
+
+rule concatenate_millard_phage_RN_analysis:
+    input:
+        files = aggregate_millard_phage_RN_analysis
+    output: base_path + "/P3_hmm_analysis/phages_RN_hmm.tsv"
+    threads: thread_ultrasmall
+    log:
+        out = base_path + "/P3_hmm_analysis/logs/phages_RN_hmm.out",
+        err = base_path + "/P3_hmm_analysis/logs/phages_RN_hmm.err"
+    params:
+        temp_file = base_path + "/P3_hmm_analysis/phages_RN_hmm.temp"
+    shell:
+        """
+        # Get the header from the first file
+        header=$(head -n 1 {input.files[0]})
+
+        # Write the header to the output file
+        echo "$header" > {output}
+
+        # Concatenate files without header and append to the output file
+        for file in {input.files}; do
+            tail -n +2 "$file" >> {output}
+        done
+        """
+
+rule phage_cas10:
+    '''
+    Searches the phage proteomes for Cas10s using the Cas10 hmm profiles
+    '''
+    input:
+        phage_proteins = base_path + "/P1_genomes/{phage}/{phage}_proteins.faa"
+    output:
+        temp_rows = base_path + "/P4_cas10hmm/{phage}/{phage}_Cas10_temp.tsv",
+        hmm_rows = base_path + "/P4_cas10hmm/{phage}/{phage}_Cas10_hmm.tsv"
+    params:
+        cas10_db = cas10_db,
+        evalue = "1e-8",
+        temp_hmm = base_path + "/P4_cas10hmm/{phage}/{phage}_Cas10_hmm.temp"
+    conda: "envs/hmmer.yaml"
+    threads: thread_ultrasmall
+    log:
+        out = base_path + "/P4_cas10hmm/{phage}/logs/Cas10_search.out",
+        err = base_path + "/P4_cas10hmm/{phage}/logs/Cas10_search.err"
+    shell:
+        '''
+        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.cas10_db} {input.phage_proteins} &> /dev/null
+        echo "Removing commented rows" >> {log.out}
+        grep -v "^#" {params.temp_hmm} > {output.temp_rows} ||:
+        echo "Writing header" >> {log.out}
+        echo -e 'target_name\taccession\ttlen\tquery_name\taccession\tqlen\tE-value_fullseq\tscore_fullseq\tbias_fullseq\t#_domain\tof_domain\tc-Evalue_domain\ti-Evalue_domain\tscore_domain\tbias_domain\t_hmm_from\thmm_to\t_ali_from\tali_to\tenv_from\tenv_to\tacc\tdescription' > {output.hmm_rows}
+        echo "Checking if hits were found" >> {log.out}
+        if [ -s {output.temp_rows} ]; then 
+            echo "Hits found for {wildcards.phage}" >> {log.out}
+            cat {output.temp_rows} >> {output.hmm_rows}
+        else
+            echo "No hits found for {wildcards.phage}" >> {log.out}
+            touch {output.hmm_rows}
+        fi
+        '''
+
+def aggregate_phage_cas10(wildcards):
+    checkpoint_output = checkpoints.divide_millard_phages_to_folders.get(**wildcards).output[0]
+    cvals = glob_wildcards(os.path.join(checkpoint_output,"{phage}/done.txt")).phage
+    return expand(base_path + "/P4_cas10hmm/{phage}/{phage}_Cas10_hmm.tsv", phage=cvals)
+
+rule phage_cas10_concatenate:
+    input: aggregate_phage_cas10
+    output: base_path + "/P4_cas10hmm/phages_Cas10_hmm.tsv"
+    threads: thread_ultrasmall
+    log:
+        out = base_path + "/P4_cas10hmm/logs/phages_Cas10_hmm.out",
+        err = base_path + "/P4_cas10hmm/logs/phages_Cas10_hmm.err"
+    params:
+        temp_file = base_path + "/P4_cas10hmm/phages_Cas10_hmm.temp"
+    shell:
+        """
+        # Get the header from the first file
+        header=$(head -n 1 {input.files[0]})
+        
+        # Concatenate files without header
+        tail -q -n +2 {input.files} > {params.temp_file}
+
+        # Add header to the concatenated file
+        echo "$header" > {output}
+
+        # Concatenate the rest of the files
+        cat {params.temp_file} >> {output}
+
+        # Remove the temporary file
+        rm {params.temp_file}
+        """
+
+#finish writing analysis if any cas10s are found
+# rule phage_cas10_analysis:
+#     '''
+#     Takes the hmm hits from rule phage_cas10 and creates simplified tables similar to
+#     ring nuclease rules before
+#     '''
+#     input:
+#         hmm_rows = rules.phage_cas10.output.hmm_rows,
+#         proteins = base_path + "/P1_genomes/{phage}/{phage}_proteins.faa"
+#     output:
+#         catyper = base_path + "/P5_cas10_analysis/{phage}/{phage}_cATyper_results.tsv",
+#         hmm_targets = base_path + "/P5_cas10_analysis/{phage}/{phage}_Cas10_hmm_targets.tsv",
+#         effector_to_protein = base_path + "/P5_cas10_analysis/{phage}/{phage}_effector_to_protein.tsv",
+#         protein_to_effector = base_path + "/P5_cas10_analysis/{phage}/{phage}_protein_to_effector.tsv",
+#         plottable_effector_positions = base_path + "/P5_cas10_analysis/{phage}/{phage}_plottable_effector_positions.tsv",
+#     params:
+#         outdir = base_path + "/P5_cas10_analysis/{phage}",
+#         hmm_msa_folder = cas10_folder + "/profiles"
+#     conda: "envs/hmmer.yaml"
+#     threads: thread_ultrasmall
+#     log:
+#         out = base_path + "/P5_cas10_analysis/{phage}/logs/Cas10_analysis.out",
+#         err = base_path + "/P5_cas10_analysis/{phage}/logs/Cas10_analysis.err"
+#     shell:
+#         '''
+#         echo "Running Cas10 analysis for phages" >> {log.out}
+#         echo "Listing targets" >> {log.out}
+#         ls {params.hmm_msa_folder}/*/*.hmm > {output.hmm_targets}
+#         python scripts/phage_RN_analyzer.py --sample {wildcards.phage} --output_folder {params.outdir} --proteins_fasta {input.proteins} --hmm_targets {output.hmm_targets} --hmm_rows {input.hmm_rows} --catyper_out {output.catyper} --catyper_type "Cas10" --effector_plot_data {output.plottable_effector_positions} --ring_nuclease False 2> {log.err} 1> {log.out}
+#         '''
+
+
+rule spacers:
+    input:
+        done = rules.CRISPRCasTyper.output,
+        renaming_done = rules.CRISPRCasTyper_rename.output
+    params:
+        fastafolder = base_path + "/07_cctyper/{j}/spacers",
+        fastafile = base_path + "/07_cctyper/{j}/spacers/",
+        crisprresultfolder = base_path + "/07_cctyper/{j}/"
+    output:
+        base_path + "/03_spacers/all/{j}_spacers.csv"
+    run:
+        from Bio import SeqIO
+        import os.path
+        from os import path
+        import csv
+
+        crispr_loci = [] #create a crispr_loci list. This is just a list of cctyper loci.
+        crispr_results = str(params.crisprresultfolder + "crisprs_all.tab")
+        print("Opening " + crispr_results)
+        if os.path.isfile(crispr_results):
+            with open(crispr_results) as csv_file:
+                csv_reader = csv.reader(csv_file, delimiter='\t')
+                line_count = 0
+                for row in csv_reader:
+                    if line_count == 0:
+                        #print(f'Column names are {", ".join(row)}')
+                        line_count += 1
+                    else:
+                        #print(", ".join(row))
+                        #print(row[11])
+                        if row[11] == "True":
+                            #print(row[1] + " trusted")
+                            crispr_loci.append(row[1])
+                        line_count += 1
+                #print(f'Processed {line_count} lines.')
+                #print("Trusted loci: " +  str(crispr_loci))
+        else:
+            print("No CRISPR-Cas loci found")
+
+        fastafolder_object = Path(params.fastafolder) #store path to spacer folder as object
+        shell("touch '{base_path}/03_spacers/all/{wildcards.j}_spacers.csv'") #create spacer .csv file for every sample
+        if len(crispr_loci) > 0: #check if there are any loci in the trusted list
+            print("------------- Spacers found in  " + str(wildcards.j) + "!")
+            spacers_dict = {}
+            for filename in os.listdir(fastafolder_object): #iterate through all fastas
+                filename_reduced = re.search('(.*)\.[^.]+$', filename).group(1)
+                #print("Reduced locus name: " + str(filename_reduced))
+                #print(crispr_loci)
+                #print(filename)
+                if filename_reduced in crispr_loci:
+                    #print("Match for file " + str(filename) + " in trusted loci")
+                    for seq_record in SeqIO.parse(str(fastafolder_object) + '/' + filename, 'fasta'): #iterate through all entries in fasta
+                        spacers_dict[seq_record.id] = seq_record.seq #add entry as dictionary entry
+            with open(str(output), 'w') as f:
+                for key in spacers_dict.keys():
+                    f.write('%s,%s\n'%(key + "@" + str(wildcards.j),spacers_dict[key]))
+        else:
+            print("No spacers found in " + str(wildcards.j))
+
+def aggregate_spacers(wildcards):
+    '''
+    Returns all spacers from all samples
+    '''
+    checkpoint_output = checkpoints.expand_host_genomelist_to_wildcards_postcas10.get(**wildcards).output[0]
+    print(checkpoint_output)
+    ivals = glob_wildcards(os.path.join(checkpoint_output,"{j}.txt")).j
+    print("Aggregating spacers from trusted locus observations")
+    return expand(base_path + "/03_spacers/all/{j}_spacers.csv", j=ivals)
+
+rule combined_spacers:
+    '''
+    This rule aggregates all spacer.csv files into one big .csv collection. The expand function is used for
+    the concatenation, and it uses the list returned by the aggregate_IDs function.
+    '''
+    input: aggregate_spacers
+    output: base_path + "/03_spacers/combined_spacers.csv"
+    shell:
+        """
+        cat {input} > {output}
+        """
+
+rule spacers_blast_convert_spacers:
+    """
+    This converts the concatenated .csv into fasta format for blasting
+    """
+    input:
+        rules.combined_spacers.output #the concatenated csv file
+    output:
+        fasta = base_path + "/03_spacers/combined_spacers.fasta",
+        formatted_spacers = base_path + "/03_spacers/formatted_spacers.csv"
+    threads: thread_ultrasmall
+    shell:
+        """
+        sed 's/^/>/' {input} > {output.formatted_spacers}
+        tr "," "\n" < {output.formatted_spacers} > {output.fasta}
+        """
+
+rule spacers_blast_runblast:
+    '''
+    Blasts spacers against the phage database.
+    Also adds headers to blast result file.
+
+    Remember to make a blast db of the phage genomes first.
+    '''
+    input:
+        fasta = rules.spacers_blast_convert_spacers.output.fasta #the concatenated csv file
+    output:
+        blast = base_path + "/P5_spacer_to_phage_blast/blast.out",
+    params:
+        blast_db = millard_fa,
+    conda: "envs/blast.yaml"
+    threads: thread_hogger
+    shell:
+        '''
+        blastn -num_threads {threads} -db {params.blast_db} -task blastn-short -query {input.fasta} -outfmt "6 qseqid qlen sseqid  stitle staxids saccver sstart send evalue length pident mismatch gapopen gaps sstrand" -evalue 0.01 > {output.blast}
+        echo -e 'Query_id\tQuery_length\tSubject_id\tSubject_sci_title\tSubject_taxID\tSubject_accession_ID_version\tSubject_start\tSubject_end\tEvalue\tLength\tPercentage_identical\tMismatches\tOpen_gaps\tGaps\tSubject_strand' | cat - {output.blast} > blast.cat && mv blast.cat {output.blast}      
+        '''
+
+def aggregate_allHosts(wildcards):
+    '''
+    Returns all hosts after the filtering by cas10
+    '''
+    checkpoint_output = checkpoints.expand_host_genomelist_to_wildcards_postcas10.get(**wildcards).output[0]
+    ivals = glob_wildcards(os.path.join(checkpoint_output,"{j}.txt")).j
+    return expand(base_path + "/03_postfiltering_genome_wildcards/{j}.txt", j=ivals)
+
+rule hostTable:
+    '''
+    Prints all bacterial genome names to file without extension. Used in spacer mapping analysis.
+    This table is after filtering by cas10 ("03_postfiltering_genome_wildcards"), so all genomes are type III,
+    but may or may not have spacer matches against phages.
+    '''
+    input: aggregate_allHosts
+    output: base_path + "/allHosts.tsv"
+    run:
+        hostlist = str(input).split(" ")
+        basenameList = []
+        for h in hostlist:
+            basename = Path(h).stem
+            basenameList.append(basename)
+        #print(input)
+        with open(str(output), mode='wt', encoding='utf-8') as hostfile:
+            hostfile.write('\n'.join(basenameList))
+
+
+rule spacer_hits_analyzer:
+    '''
+    Using data from hosts, spacer, protospacer, and phage databases, this script
+    creates merged tables showing phage/host interactions and network tables
+    for visualisation with Gephi.
+    '''
+    input:
+        mastertable = rules.mastercombiner.output.final_info_table, #ok
+        phage_data = millard_metadata, #ok
+        allHosts = rules.hostTable.output,
+        spacer_blast_hits = rules.spacers_blast_runblast.output.blast,
+        phage_rns = rules.concatenate_millard_phage_RN_analysis.output,
+    output:
+        spacer_links = base_path + "/P6_spacer_analysis/spacer_protospacer_hits.csv",
+        gephi_nodes = base_path + "/P6_spacer_analysis/spacer_nodes.csv",
+        gephi_edges = base_path + "/P6_spacer_analysis/spacer_edges.csv",
+        ca3_phages_by_host = base_path + "/P6_spacer_analysis/ca3_phagecounts.tsv", #all phages that infect ca3 hosts
+        non_ca3_phages_by_host = base_path + "/P6_spacer_analysis/ca3_phagecounts_false.tsv" #all phages that do not infect ca3 hosts
+    conda:
+        "envs/merge.yaml"
+    params:
+        outfolder = base_path + "/P6_spacer_analysis"
+    shell:
+        """
+        python scripts/spacer_hits_analyzer.py --spacer_blast_hits {input.spacer_blast_hits} --out_nodes {output.gephi_nodes} --out_edges {output.gephi_edges} --out_merged_all {output.spacer_links} --phage_data {input.phage_data} --host_mastertable {input.mastertable} --all_hosts {input.allHosts} --cATyper {input.cATyper_hmm} --base_path {base_path} --outfolder {params.outfolder} --phage_rns {input.phage_rns}
+        """
+
+
+rule separate_coa_proteomes_phages:
+    '''
+    This rule is the first step in doing enrichment analysis with the goal
+    of finding phage proteins that are enriched in phages that are targeted
+    by cA3-utilising hosts.
+
+    The division into cOA-specific phages is done already in the rule spacer_hits_analyzer.
+    Here, we take those lists, find phages that are uniquely targeted by
+    cA3-hosts, and create a fasta file of their proteins.
+
+    Clustering is done in the next rule.
+    '''
+    input:
+        ca3_phages = rules.spacer_hits_analyzer.output.ca3_phages_by_host, #list of phages that infect ca3-hosts
+        non_ca3_phages = rules.spacer_hits_analyzer.output.non_ca3_phages_by_host, #list of phages that infect non-ca3 hosts
+        all_phage_proteins = millard_proteins
+    output:
+        ca3_proteins = base_path + "/P7_enrichment_analysis/ca3_phages_proteins.faa",
+        non_ca3_proteins = base_path + "/P7_enrichment_analysis/non_ca3_phages_proteins.faa"
+    threads: thread_ultrasmall
+    shell:
+        '''
+        python scripts/separate_coa_proteomes_phages.py --ca3_phages {input.ca3_phages} --non_ca3_phages {input.non-ca3_phages} --all_phage_proteins {input.all_phage_proteins} --out_ca3_proteins {output.ca3_proteins} --out_non_ca3_proteins {output.non_ca3_proteins}
+        '''
+
+
+    #python scripts/separate_coa_proteomes_phages.py --ca3_phages spacertest/ca3_phagecounts.tsv --non_ca3_phages spacertest/ca3_phagecounts_false.tsv --all_phage_proteins /mnt/shared/scratch/vhoikkal/private/databases/millard_phages/4May2024_vConTACT2_proteins.faa --out_ca3_proteins P7_enrichment_analysis/ca3_phages_proteins.faa --out_non_ca3_proteins P7_enrichment_analysis/non_ca3_phages_proteins.faa
+
+
+# These clustering rules that work for ca3 and non-ca3 are probably not needed. Will be using the cluster_all_phage_proteins instead.
+
+# rule cluster_ca3_phagge_proteomes:
+#     '''
+#     This rule creates clusters of ca3 phage proteomes
+#     '''
+#     input:
+#         ca3_proteins = rules.separate_coa_proteomes_phages.output.ca3_proteins,
+#         non_ca3_proteins = rules.separate_coa_proteomes_phages.output.non_ca3_proteins
+#     output:
+#         ca3_clusters = base_path + "/P7_enrichment_analysis/ca3_phages_clusters.tsv",
+#     threads: thread_hogger
+#     params:
+#         cluster_cutoff = 0.4,
+#         word_length = 2
+#     shell:
+#         '''
+#         cd-hit -i "{input.ca3_proteins}" -o "{output.ca3_clusters}" -c {params.cluster_cutoff} -n {params.word_length} -T {threads} 2> {log.err} 1> {log.out}
+#         '''
+
+#         cd-hit -i "P7_enrichment_analysis/ca3_phages_proteins.faa" -o "P7_enrichment_analysis/ca3_phages_clusters.tsv" -c 0.4 -n 2 -T 40 2> {log.err} 1> {log.out}
+
+
+# rule cluster_nonca3_phage_proteomes:
+#     '''
+#     This rule creates clusters of non-ca3 phage proteomes
+#     '''
+#     input:
+#         ca3_protein_cluster_done = rules.cluster_ca3_phagge_proteomes.output.ca3_clusters,
+#         non_ca3_proteins = rules.separate_coa_proteomes_phages.output.non_ca3_proteins
+#     output:
+#         non_ca3_clusters = base_path + "/P7_enrichment_analysis/non_ca3_phages_clusters.tsv"
+#     threads: thread_hogger
+#     shell:
+#         '''
+#         cd-hit -i "{input.non_ca3_proteins}" -o "{output.ca3_clusters}" -c {params.cluster_cutoff} -n {params.word_length} -T {threads} 2> {log.err} 1> {log.out}
+#         '''
+
+rule cluster_all_phage_proteins:
+    '''
+    This rule creates clusters of all phage proteins
+    '''
+    input:
+        all_phage_proteins = millard_proteins
+    output:
+        all_phage_clusters_clstr = base_path + "/P7_enrichment_analysis/all_protein_cluster.faa.clstr",
+        all_phage_clusters_faa = base_path + "/P7_enrichment_analysis/all_protein_cluster.faa"
+    threads: thread_hogger
+    params:
+        cluster_cutoff = 0.4,
+        word_length = 2,
+        max_length_diff = 0.75
+    shell:
+        '''
+        cd-hit -i "{input.all_phage_proteins}" -o "{output.all_phage_clusters_faa}" -c {params.cluster_cutoff} -n {params.word_length} -s {params.max_length_diff} -c 999 -T {threads} 2> {log.err} 1> {log.out}
+        '''
+
+rule create_phage_protein_sqlite_db:
+    '''
+    Creates an SQLite database from the phage protein clusters
+    '''
+    input:
+        all_proteins_cluster = rules.cluster_all_phage_proteins.output.all_phage_clusters_clstr,
+        all_proteins_cluster_fasta = rules.cluster_all_phage_proteins.output.all_phage_clusters_faa
+    output:
+        sqlite = base_path + "/P7_enrichment_analysis/phage_protein_cluster.db"
+    shell:
+        '''
+        python scripts/sqlite_db_create.py --all_proteins_cluster {input.all_proteins_cluster} --all_proteins_cluster_fasta {input.all_proteins_cluster_fasta} --out {output.sqlite}
+        '''
+
+
+rule calculate_ca3_hits_for_phage_clusters:
+    '''
+    This rule calculates the number of ca3 or non ca3 phages associated with each phage protein cluster
+    '''
+    input:
+        all_proteins_sqlite = rules.create_phage_protein_sqlite_db.output.sqlite,
+        ca3_proteins = rules.separate_coa_proteomes_phages.output.ca3_proteins, 
+        non_ca3_proteins = rules.separate_coa_proteomes_phages.output.non_ca3_proteins
+    output: base_path + "/P7_enrichment_analysis/done.done"
+    shell:
+        '''
+        python scripts/assign_cluster_ca3_hits.py --sqlite {input.all_proteins_sqlite} --ca3_proteins {input.ca3_proteins} --non_ca3_proteins {input.non_ca3_proteins}
+        touch {output}
+        '''
+
+rule enrichment_analysis_ca3:
+    '''
+    This rule performs enrichment analysis on the phage proteins based on ca3-infecting phage "hits".
+    '''
+    input:
+        all_proteins_sqlite = rules.create_phage_protein_sqlite_db.output.sqlite,
+        assigning_done = rules.calculate_ca3_hits_for_phage_clusters.output
+    output:
+        enrichment_results = base_path + "/P7_enrichment_analysis/enrichment_results.tsv"
+    shell:
+        '''
+        python scripts/enrichment_analysis.py --sqlite {input.all_proteins_sqlite} --out {output.enrichment_results}
+        '''
+
+rule DBSCANSWA:
+    '''
+    This rule searches all bacterial genomes for prophages
+    using DBSCAN-SWA.
+
+    DBSCAN-SWA is installed separately from the Conda environment. Instructions:
+    1. Cloned by git clone https://github.com/HIT-ImmunologyLab/DBSCAN-SWA
+    2. export PATH=$PATH:/home/vhoikkal/scratch/private/programs/DBSCAN-SWA/bin (add to bashrc)
+    3. Set permissions:
+        chmod u+x -R /path-to-cloned-program/DBSCAN-SWA/bin
+        chmod u+x -R /path-to-cloned-program/DBSCAN-SWA/software
+    4. Add dependencies to conda env here in snakemake for Blast+, Diamond, Prokka, Numpy, 
+    5. Run using python bin/dbscan-swa.py
+    '''
+    input:
+        genome = base_path + "/06_host_genomes/{j}/{j}_genome.fna"
+    output:
+        proteins = base_path + "/PP1_dbscan_swa/{j}/{j}_DBSCAN-SWA_prophage.faa", #	all predicted prophage protein sequences in FASTA format
+        nt = base_path + "/PP1_dbscan_swa/{j}/{j}_DBSCAN-SWA_prophage.fna", #all predicted prophage Nucleotide sequences in FASTA format
+        summary = base_path + "/PP1_dbscan_swa/{j}/{j}_DBSCAN-SWA_prophage_summary.txt" #tsv file
+    params:
+        outfolder = base_path + "/PP1_dbscan_swa/{j}",
+        evalue = "1e-7", #default 1e-7
+        min_protein_num = "6", #default 6
+        protein_number = "10" #default 10
+    conda: "envs/dbscan_swa.yaml"
+    threads: thread_ultrasmall
+    log:
+        out = base_path + "/PP1_dbscan_swa/{j}/logs/dbscan_swa.out",
+        err = base_path + "/PP1_dbscan_swa/{j}/logs/dbscan_swa.err"
+    shell:
+        '''
+        dbscan-swa.py --input {input.genome} --output {params.outfolder} --prefix {wildcards.j} --evalue {params.evalue} --min_protein_num {params.min_protein_num}
+        '''
+
+def aggregate_dbscanswa(wildcards):
+    '''
+    Returns all prophage analysis summaries from all samples
+    '''
+    checkpoint_output = checkpoints.expand_host_genomelist_to_wildcards_postcas10.get(**wildcards).output[0]
+    ivals = glob_wildcards(os.path.join(checkpoint_output,"{j}.txt")).j
+    return expand(base_path + "/PP1_dbscan_swa/{j}/{j}_DBSCAN-SWA_prophage_summary.txt", j=ivals)
+
+rule concatenate_dbscanswa:
+    input: aggregate_dbscanswa
+    output: base_path + "/PP1_dbscan_swa/all_prophages.tsv"
+    threads: thread_ultrasmall
+    log:
+        out = base_path + "/PP1_dbscan_swa/logs/all_prophages.out",
+        err = base_path + "/PP1_dbscan_swa/logs/all_prophages.err"
+    params:
+        temp_file = base_path + "/PP1_dbscan_swa/all_prophages.temp"
+    shell:
+        """
+        # Get the header from the first file
+        header=$(head -n 1 {input.files[0]})
+
+        # Write the header to the output file
+        echo "$header" > {output}
+
+        # Concatenate files without header and append to the output file
+        for file in {input.files}; do
+            tail -n +2 "$file" >> {output}
+        done
+        """
+
+rule phigaro:
+    '''
+    This rule searches all bacterial genomes for prophages
+    using Phigaro.
+    '''
+    input:
+        genome = base_path + "/06_host_genomes/{j}/{j}_genome.fna"
+    output:
+        summary = base_path + "/PP1_phigaro/{j}/{j}_genome.phigaro.tsv" #tsv file 
+    params:
+        outfolder = base_path + "/PP1_phigaro/{j}",
+        config_file = "/home/vhoikkal/scratch/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder/scripts/phigaro_config.yml"
+    conda: "envs/phigaro.yaml"
+    threads: thread_small
+    log:
+        out = base_path + "/PP1_phigaro/{j}/logs/dbscan_swa.out",
+        err = base_path + "/PP1_phigaro/{j}/logs/dbscan_swa.err"
+    shell:
+        '''
+        phigaro -f {input.genome} -o {params.outfolder} -e tsv html gff -t {threads} -c {params.config_file} 2> {log.err} 1> {log.out}
+        '''
+#phigaro -f {input.genome} -o {params.outfolder}/{wildcards.j}_phigaro -e tsv html -t {params.threads} -c {params.config}
+
+def aggregate_phigaro(wildcards):
+    '''
+    Returns all prophage analysis summaries from all samples
+    '''
+    checkpoint_output = checkpoints.expand_host_genomelist_to_wildcards_postcas10.get(**wildcards).output[0]
+    ivals = glob_wildcards(os.path.join(checkpoint_output,"{j}.txt")).j
+    return expand(base_path + "/PP1_phigaro/{j}/{j}_genome.phigaro.tsv", j=ivals)
+
+rule concatenate_phigaro:
+    input:
+        files = aggregate_phigaro
+    output: base_path + "/PP1_phigaro/all_prophages.tsv"
+    threads: thread_ultrasmall
+    log:
+        out = base_path + "/PP1_phigaro/logs/all_prophages.out",
+        err = base_path + "/PP1_phigaro/logs/all_prophages.err"
+    params:
+        temp_file = base_path + "/PP1_phigaro/all_prophages.temp"
+    shell:
+        """
+        # Get the header from the first file
+        header=$(head -n 1 {input.files[0]})
+
+        # Write the header to the output file
+        echo "$header" > {output}
+
+        # Concatenate files without header and append to the output file
+        for file in {input.files}; do
+            tail -n +2 "$file" >> {output}
+        done
+        """
+
+### Contig to genome accesion mapping ###
+
+rule contig_to_genome_mapping:
+    '''
+    This rule creates a table that shows which contig is part of
+    which genomic accession number in hosts.
+    '''
+    input:
+        contigs = base_path + "/06_host_genomes/{j}/{j}_genome.fna",
+    output:
+        mapping = base_path + "/06_host_genomes/{j}/{j}_contig_to_genome_mapping.tsv"
+    shell:
+        '''
+        python scripts/contig_to_genome_mapping.py --genome {wildcards.j} --contigs {input.contigs} --out {output.mapping}
+        '''
+
+def aggregate_contig_to_genome_mapping(wildcards):
+    '''
+    Returns all contig to genome mapping files from all samples
+    '''
+    checkpoint_output = checkpoints.expand_host_genomelist_to_wildcards_postcas10.get(**wildcards).output[0]
+    ivals = glob_wildcards(os.path.join(checkpoint_output,"{j}.txt")).j
+    return expand(base_path + "/06_host_genomes/{j}/{j}_contig_to_genome_mapping.tsv", j=ivals)
+
+rule concatenate_contig_to_genome_mapping:
+    input:
+        files = aggregate_contig_to_genome_mapping
+    output: base_path + "/06_host_genomes/contig_to_genome_mapping.tsv"
+    threads: thread_ultrasmall
+    log:
+        out = base_path + "/06_host_genomes/logs/contig_to_genome_mapping.out",
+        err = base_path + "/06_host_genomes/logs/contig_to_genome_mapping.err"
+    params:
+        temp_file = base_path + "/06_host_genomes/contig_to_genome_mapping.temp"
+    shell:
+        """
+        # Get the header from the first file
+        header=$(head -n 1 {input.files[0]})
+
+        # Write the header to the output file
+        echo "$header" > {output}
+
+        # Concatenate files without header and append to the output file
+        for file in {input.files}; do
+            tail -n +2 "$file" >> {output}
+        done
+        """
+
+
+### Outside CRISPR-Cas loci ####
+
+rule all_proteins_against_RN_diamond:
+    '''
+    This rule takes in all proteins of a bacteria host and uses
+    a Diamond database of ring nucleases to find all ring nucleases
+    in that genome. The idea is to find ring nucleases outside
+    the type III CRISPR-Cas locus boundaries.
+    The results of this rule can later be combined with knowledge
+    of prophage boundaries from rule phigaro.
+    '''
+    input:
+        proteins = base_path + "/06_host_genomes/{j}/{j}_proteins.faa"
+    output:
+        diamond = base_path + "/DIAMOND_RN/{j}/{j}_ring_nucleases.tsv"
+    params:
+        diamond_db = rn_diamond_db,
+        evalue = 1e-5
+    conda: "envs/diamond.yaml"
+    threads: thread_small
+    log:
+        out = base_path + "/DIAMOND_RN/{j}/logs/diamond.out",
+        err = base_path + "/DIAMOND_RN/{j}/logs/diamond.err"
+    shell:
+        '''
+        diamond blastp --db {params.diamond_db} --query {input.proteins} --out {output.diamond} --outfmt 6 --evalue {params.evalue} --threads {threads} 2> {log.err} 1> {log.out}
+        '''
+
+rule add_locus_info_to_diamond_rn_hits:
+    '''
+    Adds the wildcard as a column to the diamond ring nuclease hits using a simple shell script.
+    Also fetches genomic coordinates from the host's gff file
+    '''
+    input:
+        diamond = rules.all_proteins_against_RN_diamond.output,
+        gff = base_path + "/06_host_genomes/{j}/{j}_features.gff"
+    output:
+        info = base_path + "/DIAMOND_RN/{j}/{j}_ring_nucleases_info.tsv"
+    log:
+        out = base_path + "/DIAMOND_RN/{j}/logs/ring_nucleases_info.out",
+        err = base_path + "/DIAMOND_RN/{j}/logs/ring_nucleases_info.err"
+    shell:
+        '''
+        python scripts/add_locus_info_to_diamond_rn_hits.py --diamond {input.diamond} --gff {input.gff} --sample {wildcards.j} --out {output.info} 2> {log.err} 1> {log.out}
+        '''
+        
+
+def aggregate_all_proteins_against_RN_diamond(wildcards):
+    '''
+    Returns all ring nuclease hits from all samples
+    '''
+    checkpoint_output = checkpoints.expand_host_genomelist_to_wildcards_postcas10.get(**wildcards).output[0]
+    ivals = glob_wildcards(os.path.join(checkpoint_output,"{j}.txt")).j
+    return expand(base_path + "/DIAMOND_RN/{j}/{j}_ring_nucleases_info.tsv", j=ivals)
+
+rule concatenate_all_proteins_against_RN_diamond:
+    input:
+        files = aggregate_all_proteins_against_RN_diamond
+    output: base_path + "/DIAMOND_RN/all_ring_nucleases.tsv"
+    threads: thread_small
+    log:
+        out = base_path + "/DIAMOND_RN/logs/all_ring_nucleases.out",
+        err = base_path + "/DIAMOND_RN/logs/all_ring_nucleases.err"
+    params:
+        temp_file = base_path + "/DIAMOND_RN/all_ring_nucleases.temp"
+    shell:
+        """
+        # Get the header from the first file
+        header=$(head -n 1 {input.files[0]})
+
+        # Write the header to the output file
+        echo "$header" > {output}
+
+        # Concatenate files without header and append to the output file
+        for file in {input.files}; do
+            tail -n +2 "$file" >> {output}
+        done
+        """
+
+def aggregate_crispr_locus_coordinates(wildcards):
+    '''
+    Returns all CRISPR-Cas locus coordinates from all samples
+    '''
+    checkpoint_output = checkpoints.type_iii_wildcarder.get(**wildcards).output[0]
+    cvals = glob_wildcards(os.path.join(checkpoint_output,"{c}/cas_operons.tsv")).c
+    return expand(base_path + "/071_cctyper_loci/{c}/cas_operons.tsv", c=cvals)
+
+rule concatenate_crispr_locus_coordinates:
+    '''
+    Takes in all CRISPR-Cas locus coordinates from checkpoint type_iii_wildcarder
+    and concatenates them into one file.
+    '''
+    input:
+        files = aggregate_crispr_locus_coordinates
+    output: base_path + "/all_cas_operons.tsv"
+    threads: thread_ultrasmall
+    log:
+        out = base_path + "/071_cctyper_loci/logs/all_cas_operons.out",
+        err = base_path + "/071_cctyper_loci/logs/all_cas_operons.err"
+    params:
+        temp_file = base_path + "/071_cctyper_loci/all_cas_operons.temp"
+    shell:
+        """
+        # Get the header from the first file
+        header=$(head -n 1 {input.files[0]})
+
+        # Write the header to the output file
+        echo "$header" > {output}
+
+        # Concatenate files without header and append to the output file
+        for file in {input.files}; do
+            tail -n +2 "$file" >> {output}
+        done
+        """
+
+rule RN_hits_outside_crispr_merger:
+    '''
+    This rule brings together all_proteins_against_RN_diamond, phigaro, and contig_to_genome_mapping.
+    contig_to_genome_mapping is used to map the accession numbers of the diamond blasts to the genomic accessions.
+    Then, the phigaro results are used to find prophage boundaries and mark whether each hit is within
+    a prophage region or now. We also use CRISPR-Cas locus coordinates from rule 
+    '''
+    input:
+        RN_diamond = rules.concatenate_all_proteins_against_RN_diamond.output,
+        phigaro = rules.concatenate_phigaro.output,
+        contig_to_genome_mapping = rules.concatenate_contig_to_genome_mapping.output,
+        cas_operons = rules.concatenate_crispr_locus_coordinates.output
+    output: base_path + "/hits_outside_crispr.tsv"
+    shell:
+        '''
+        python scripts/RN_hits_outside_crispr_merger.py --RN_diamond {input.RN_diamond} --phigaro {input.phigaro} --contig_to_genome_mapping {input.contig_to_genome_mapping} --cas_operons {input.cas_operons} --out {output}
+        '''
+
 
 
 rule final:
@@ -3379,9 +4371,9 @@ rule final:
         known_effectors_cas10_fusions = rules.known_effectors_cas10_fusions.output.hmm_rows,
         ring_nucleases_fusions = rules.concatenate_ring_nuclease_fusions.output,
         cOA_RN_explorer = rules.cOA_RN_explorer.output.ca3_loci,
-        cA3_small_unk_proteins_info = rules.cOA_small_unk_proteins.output.cA3_small_unk_proteins_info,
-        fetch_small_unk_targets_ncbi = rules.fetch_small_unk_targets_ncbi.output.all_proteins,
-        clustered_small_unknowns = rules.cluster_small_unk_proteins.output.clustered_proteins,
+        #cA3_small_unk_proteins_info = rules.cOA_small_unk_proteins.output.cA3_small_unk_proteins_info,
+        #fetch_small_unk_targets_ncbi = rules.fetch_small_unk_targets_ncbi.output.all_proteins,
+        #clustered_small_unknowns = rules.cluster_small_unk_proteins.output.clustered_proteins,
         #small_unk_proteins_clusters_hmmer = rules.small_unk_proteins_clusters_hmmer.output.raw_table,
         #tree_small_unk_protein_cluster_representatives = rules.tree_small_unk_protein_cluster_representatives.output,
         #webflags_cluster_small_unk_proteins = rules.webflags_cluster_small_unk_proteins.output.done,
@@ -3389,7 +4381,23 @@ rule final:
         #concatenate_wildcarded_webflags = rules.concatenate_wildcarded_webflags.output,
         #ae1_family_tree = rules.ae1_family_tree.output,
         #ae1_family_collector = rules.ae1_family_collector.output.done,
-        potential_other_rn_collector = rules.potential_other_rn_collector.output.done,
+        #potential_other_rn_collector = rules.potential_other_rn_collector.output.done,
+        concatenate_csx19 = rules.concatenate_csx19.output.proteins,
+        crn4_tree = rules.crn4_tree.output.tree1,
+        #phages_merge_hmm_and_metadata = rules.phages_merge_hmm_and_metadata.output
+        #concatenate_millard_phage_RN_analysis = rules.concatenate_millard_phage_RN_analysis.output,
+        #spacers_blast_convert_spacers = rules.spacers_blast_convert_spacers.output.fasta,
+        #spacers_blast = rules.spacers_blast_runblast.output.blast,
+        #phage_cas10_concatenate = rules.phage_cas10_concatenate.output,
+        hostTable = rules.hostTable.output,
+        #spacer_links = rules.spacer_hits_analyzer.output.spacer_links,
+        #dbscan_swa = rules.concatenate_dbscanswa.output,
+        concatenate_phigaro = rules.concatenate_phigaro.output,
+        #cluster_all_phage_proteins = rules.cluster_all_phage_proteins.output.all_phage_clusters_clstr,
+        concatenate_all_proteins_against_RN_diamond = rules.concatenate_all_proteins_against_RN_diamond.output,
+        concatenate_contig_to_genome_mapping = rules.concatenate_contig_to_genome_mapping.output,
+        concatenate_crispr_locus_coordinates = rules.concatenate_crispr_locus_coordinates.output,
+        RN_hits_outside_crispr_merger = rules.RN_hits_outside_crispr_merger.output
     output: base_path + "/done"
     threads: thread_small
     shell:

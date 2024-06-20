@@ -52,7 +52,8 @@ ring_nucleases_table.columns = columns
 
 print(ring_nucleases_table)
 
-
+#add column clade to ring_nucleases_table
+ring_nucleases_table["rn_clade"] = ring_nucleases_table["effector_dict"].apply(lambda x: x["clade"])
 
 #For each create a new column called "effector" and set it to the value of the dictionary key "effector" from the column "effector_dict"
 known_effectors_table["effector"] = known_effectors_table["effector_dict"].apply(lambda x: x["effector"])

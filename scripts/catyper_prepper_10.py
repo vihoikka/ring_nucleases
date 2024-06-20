@@ -181,7 +181,7 @@ if mode == "post_hmm":
 
     #construct dictionaries for different types of cOAs
     cOA_dict_binary = {"ca3":False, "ca4":False, "ca5":False, "ca6":False, "sam-amp":False, "unk":False, "val": False, "mem": False, "rng": False} #TODO MODIFY WHEN ADDING NEW EFFECTORS
-    effector_dict = {"ca3":0, "ca4":0, "ca5":0, "ca6":0, "sam-amp": 0, "unk": 0, "val": 0, "rng": 0, "mem": 0, "ae1": 0} #TODO MODIFY WHEN ADDING NEW EFFECTORS
+    effector_dict = {"ca3":0, "ca4":0, "ca5":0, "ca6":0, "sam-amp": 0, "unk": 0, "val": 0, "rng": 0, "mem": 0, "ae1-1": 0, "ae1-2": 0} #TODO MODIFY WHEN ADDING NEW EFFECTORS
 
     #check if hmm result exists
     print("Checking if hmm result exists")
@@ -227,10 +227,12 @@ if mode == "post_hmm":
             "tirsaved": 350,
             "can3": 400,
             #ones below are for ring nucleases
-            "ae1": 50,
+            "ae1-1": 50,
+            "ae1-2": 50,
             "crn1": 50,
             "crn2": 50,
             "crn3": 50,
+            "csx14": 50,
             "csx16": 50,
             "csx20": 50,
             "csx15": 50,
@@ -238,7 +240,10 @@ if mode == "post_hmm":
             #membrane proteins
             "cam3": 140,
             "cam2": 140,
-            "tpr-chat": 600
+            "tpr-chat": 600,
+            "phrogRN": 50,
+            "proteaseRN": 50,
+            "solosavedRN": 50,
         }
     
     max_lengths = { #maximum lengths for known effectors #TODO MODIFY WHEN ADDING NEW EFFECTORS
@@ -257,17 +262,22 @@ if mode == "post_hmm":
             "saved-chat": 9999,
             "tirsaved": 9999,
             "can3": 9999,
-            "ae1": 9999,
-            "crn1": 170, #this is to avoid cross-annotation with csx6, which is usually over 200 AA
-            "crn2": 9999,
-            "crn3": 9999,
-            "csx16": 9999,
-            "csx20": 9999,
-            "csx15": 9999,
-            "unk01": 9999,
+            "ae1-1": 9999,
+            "ae1-2": 9999,
+            "crn1": 350, #this is to avoid cross-annotation with csx6, which is usually over 200 AA. Now trying 350, check results manually
+            "crn2": 250,
+            "crn3": 250,
+            "csx14": 260,
+            "csx16": 250,
+            "csx20": 250,
+            "csx15": 250,
+            "unk01": 250,
             "cam3": 9999,
             "cam2": 9999,
-            "tpr-chat": 9999
+            "tpr-chat": 9999,
+            "phrogRN": 250,
+            "proteaseRN": 250,
+            "solosavedRN": 250,
         }
 
     print("...Checking hmm results for cA type...")
@@ -275,23 +285,32 @@ if mode == "post_hmm":
     for index, row in hmm.iterrows(): #check each row in hmm result
         print(row)
         protein_id = row["query_name"] #returns the protein id
+        clade = "noCladeInfo" #clade is used to differentiate between different clades of the same protein (some HMM profiles consist of multiple clades). This is currently only used in ring nuclease analysis with Ae1.
         #check if the hmm result contains the word 'icity'. This refers to CorA and is a remnant from the HMM profile fil
 
         if "_" in row["target_name"]: #if the hmm result contains an underscore, it is one of the other effectors
             #if the hmm result contains a hashtag #, then the bit followed by the hashtag is precise_hit
             if "#" in row["target_name"]:
-                # name with # are in the format ca6_csm6-ca6_italicus#csm6-ca6_clustered_aligned
+                # name with # are in the format ca6_csm6-ca6_italicus#csm6-ca6_clustered_aligned. Whenever a hastag is present, a clade that differentiates the effector from other clades is present (the last part of the name before the hashtag, in this case italicus)
                 # the signal molecule is first fetched splitting by _ and getting first hit
                 split_underscore = re.split('_', row["target_name"])
                 hit_type = split_underscore[0]
-                #the actual effector is fetched splitting by # and get ting second hit, and splitting it by _ and getting first hit. For example, the name could be ca6_csm6-ca6_italicus#csm6-ca6
+                #the actual effector is fetched splitting by # and getting second hit, and splitting it by _ and getting first hit. For example, the name could be ca6_csm6-ca6_italicus#csm6-ca6
                 split_hashtag = re.split('#', row["target_name"]) #split_hashtag becomes ['ca6_csm6-ca6_italicus', 'csm6-ca6_clustered_aligned']
                 precise_hit = re.split("_", split_hashtag[1])[0] #precise_hit becomes csm6-ca6
+                clade = split_hashtag[0].split("_")[-1] #clade becomes italicus
+                print("Precise hit: " + str(precise_hit) + " Clade: " + str(clade))
 
                 if ring_nuclease == "True": #if we are running catyper_prepper10 in run_ring_nuclease mode
-                    print("...Ring nuclease detected")
+                    print("...Ring nuclease detected with hashtag: " + str(row["target_name"]))
+                    print("....The precise hit is " + str(precise_hit))
                     hit_type = "rng"
-                    precise_hit = re.split("_", row["target_name"])[0]
+                    #precise_hit = re.split("_", row["target_name"])[0]
+                    #ring nuclease clades are defined by the last _ part of the name prior to hashtag. For example in "ae1_2#ae1.hmm", the clade is 2
+                    try:
+                        clade = split_hashtag[0].split("_")[-1]
+                    except:
+                        clade = "noCladeInfo"
 
                 if precise_hit == "cam1":
                     #for cam1 we need to an additional check to see if it has a transmembrane domain
@@ -350,7 +369,8 @@ if mode == "post_hmm":
             #
             #if the protein is listed in the custom evalues, check if it has already been detected by another effector in that list
             #check if the protein_id exists as key in the protein_to_effector dictionary
-            precise_hit_and_score = {"effector": precise_hit, 
+            precise_hit_and_score = {"effector": precise_hit,
+                                    "clade": clade,
                                     "start": start,
                                     "end": stop,
                                     "strand": strand,
@@ -359,7 +379,8 @@ if mode == "post_hmm":
                                     "locus": locus,
                                     "sample": sample,
                                     "type": catyper_type,
-                                    "sequence": protein_sequences[protein_id].seq}
+                                    "sequence": protein_sequences[protein_id].seq
+                                    }
             if protein_id in protein_to_effector:
                 print("...Protein " + protein_id + " already exists in protein_to_effector dictionary: " + str(protein_to_effector[protein_id]))
                 print("Checking the score of the existing hit (" + str(protein_to_effector[protein_id][0]["effector"] + ") and comparing to new one: " + str(protein_to_effector[protein_id][0]["score"]) + " vs new score of " + str(target_score) + " in " + str(precise_hit)))
