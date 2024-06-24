@@ -2248,6 +2248,9 @@ rule heatmap_ring_nucleases:
 
 rule crn4_aligner:
     '''
+    Deprecated. Csx14 lumped with Csx1 and 15,16,20 kept separate.
+
+    Legacy text:
     Crn4 refers to Csx15, 16 and 20 (a, b, c). These are structurally almost identical proteins,
     but sequence-wise quite diverged. Here we align them by aa sequence
     and create tree in subsequent rule.
@@ -2392,42 +2395,6 @@ rule ring_nuclease_cas10_fusions:
         echo -e 'target_name\taccession\ttlen\tquery_name\taccession\tqlen\tE-value_fullseq\tscore_fullseq\tbias_fullseq\t#_domain\tof_domain\tc-Evalue_domain\ti-Evalue_domain\tscore_domain\tbias_domain\t_hmm_from\thmm_to\t_ali_from\tali_to\tenv_from\tenv_to\tacc\tdescription' > {output.hmm_rows}
         cat {output.temp_rows} >> {output.hmm_rows}
         '''
-
-# rule new_ring_nucleases:
-#     '''
-#     This rule searches for potential ring nucleases by finding poorly annotated short genes within type III loci
-#     Takes as input a list of locus names (from rule mastercombiner) and performs characterisation of all unknown proteins in those loci.
-#     Characterisation involves:
-#         - HMM search against Pfam
-#         - HMM search against CARF/SAVED
-#     '''
-#     input:
-#         group4_list = rules.mastercombiner.output.group4_IDs,
-#         unknown_proteins = rules.concatenate_unknowns.output.proteins
-#     output:
-#         #group4_CARFSAVED = base_path + "/group4/group4.CARFSAVED.rawresults.tsv",
-#         group4_pfam = base_path + "/group4/group4.all.pfam.rawresults.tsv",
-#         clustered_unknowns = base_path + "/group4/group4_clustered_unknowns.faa",
-#         individual_fastas_created = base_path + "/group4/individual_fastas/fastas_created.done"
-#     params:
-#         outdir = base_path + "/group4",
-#         output_base = base_path + "/group4/group4",
-#         output_individual_fastas = base_path + "/group4/individual_fastas",
-#         pfams_temp = base_path + "/group4/group4.all.pfam.rawresults.txt.temp",
-#         tmhmm_model = TM_path + "/TMHMM2.0.model"
-#     log:
-#         out = base_path + "/group4/logs/group4_characteriser.out",
-#         err = base_path + "/group4/logs/group4_characteriser.err"
-#     conda:
-#         "envs/groupChar.yaml"
-#     threads: thread_small
-#     shell:
-#         '''
-#         python3 scripts/novel_ring_nucleases.py --input {input.group4_list} --unknown_proteins {input.unknown_proteins} --output_basename {params.output_base} --clustered_unknowns {output.clustered_unknowns} --individual_fastas_dir {params.output_individual_fastas} --tmhmm_model {params.tmhmm_model} --outputfolder {params.outdir} --pfam_db {pfam_db} --carfsaved_db {carfsaved_db}  2> {log.err} 1> {log.out}
-#         touch {output.individual_fastas_created}
-#         echo -e "{group4_pfam_headers}" > {output.group4_pfam}
-#         grep -v "#" {params.pfams_temp} >> {output.group4_pfam}
-#         '''
 
 
 rule validated_effectors_cas10_fusions:

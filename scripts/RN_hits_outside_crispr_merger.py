@@ -60,8 +60,6 @@ def main():
         "csx16": general_evalue,
         "csx20": general_evalue,
         "csx1": general_evalue,
-        "crn5a": general_evalue,
-        "crn5b": general_evalue,
     }
 
     # Function to get the threshold for a given diamond_target

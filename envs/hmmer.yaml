@@ -7,7 +7,7 @@ dependencies:
   - seqkit
   - biopython
   - gffutils
-  - muscle=5.1
-  - numpy==1.16.0
-  - python=3
-  - seaborn=0.11.2
+  - muscle
+  - numpy=1.16.0
+  - seaborn
+  - python=3.7

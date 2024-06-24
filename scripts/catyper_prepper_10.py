@@ -181,7 +181,7 @@ if mode == "post_hmm":
 
     #construct dictionaries for different types of cOAs
     cOA_dict_binary = {"ca3":False, "ca4":False, "ca5":False, "ca6":False, "sam-amp":False, "unk":False, "val": False, "mem": False, "rng": False} #TODO MODIFY WHEN ADDING NEW EFFECTORS
-    effector_dict = {"ca3":0, "ca4":0, "ca5":0, "ca6":0, "sam-amp": 0, "unk": 0, "val": 0, "rng": 0, "mem": 0, "ae1-1": 0, "ae1-2": 0} #TODO MODIFY WHEN ADDING NEW EFFECTORS
+    effector_dict = {"ca3":0, "ca4":0, "ca5":0, "ca6":0, "sam-amp": 0, "unk": 0, "val": 0, "rng": 0, "mem": 0} #TODO MODIFY WHEN ADDING NEW EFFECTORS
 
     #check if hmm result exists
     print("Checking if hmm result exists")
@@ -227,23 +227,16 @@ if mode == "post_hmm":
             "tirsaved": 350,
             "can3": 400,
             #ones below are for ring nucleases
-            "ae1-1": 50,
-            "ae1-2": 50,
             "crn1": 50,
             "crn2": 50,
             "crn3": 50,
-            "csx14": 50,
             "csx16": 50,
             "csx20": 50,
             "csx15": 50,
-            "unk01": 50,
             #membrane proteins
             "cam3": 140,
             "cam2": 140,
             "tpr-chat": 600,
-            "phrogRN": 50,
-            "proteaseRN": 50,
-            "solosavedRN": 50,
         }
     
     max_lengths = { #maximum lengths for known effectors #TODO MODIFY WHEN ADDING NEW EFFECTORS
@@ -262,12 +255,9 @@ if mode == "post_hmm":
             "saved-chat": 9999,
             "tirsaved": 9999,
             "can3": 9999,
-            "ae1-1": 9999,
-            "ae1-2": 9999,
             "crn1": 350, #this is to avoid cross-annotation with csx6, which is usually over 200 AA. Now trying 350, check results manually
             "crn2": 250,
             "crn3": 250,
-            "csx14": 260,
             "csx16": 250,
             "csx20": 250,
             "csx15": 250,
@@ -285,7 +275,7 @@ if mode == "post_hmm":
     for index, row in hmm.iterrows(): #check each row in hmm result
         print(row)
         protein_id = row["query_name"] #returns the protein id
-        clade = "noCladeInfo" #clade is used to differentiate between different clades of the same protein (some HMM profiles consist of multiple clades). This is currently only used in ring nuclease analysis with Ae1.
+        clade = "noCladeInfo" #clade is used to differentiate between different clades of the same protein (some HMM profiles consist of multiple clades). Currently used with some potential new ring nucleases.
         #check if the hmm result contains the word 'icity'. This refers to CorA and is a remnant from the HMM profile fil
 
         if "_" in row["target_name"]: #if the hmm result contains an underscore, it is one of the other effectors
@@ -306,7 +296,7 @@ if mode == "post_hmm":
                     print("....The precise hit is " + str(precise_hit))
                     hit_type = "rng"
                     #precise_hit = re.split("_", row["target_name"])[0]
-                    #ring nuclease clades are defined by the last _ part of the name prior to hashtag. For example in "ae1_2#ae1.hmm", the clade is 2
+                    #ring nuclease clades are defined by the last _ part of the name prior to hashtag. For example in "ringnuclease1_2#ringnuclease1.hmm", the clade is 2
                     try:
                         clade = split_hashtag[0].split("_")[-1]
                     except:
