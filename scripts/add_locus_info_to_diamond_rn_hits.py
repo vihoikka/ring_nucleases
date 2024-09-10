@@ -39,6 +39,8 @@ def main():
     #add columns genomic_start and genomic_end
     diamond_df['genomic_start'] = ''
     diamond_df['genomic_end'] = ''
+    diamond_df['diamond_contig'] = ''
+    diamond_df['ncbi_annotation'] = ''
 
     #add host column that has value of sample for any row that exists
     diamond_df['host'] = sample
@@ -74,6 +76,10 @@ def main():
                 #add the protein coordinates directly to the diamond_df
                 diamond_df.at[index, 'genomic_start'] = feature.start
                 diamond_df.at[index, 'genomic_end'] = feature.end
+                #find the contig from the first column of the gff file
+                diamond_df.at[index, 'diamond_contig'] = feature.seqid
+                #find the product annotation from the gff file
+                diamond_df.at[index, 'ncbi_annotation'] = feature.attributes['product'][0]
                 break
 
     #write the updated diamond_df to the input diamond file

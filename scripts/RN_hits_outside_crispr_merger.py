@@ -94,7 +94,7 @@ def main():
     #from cas_operons_df, print the row where host GCF_000175295.2
     print(cas_operons_df[cas_operons_df['sample'] == 'GCF_000175295.2'])
 
-    # merge with CRISPR-Cas locus coordinates
+    # merge with CRISPR-Cas locus coordinates. Add a prefix to the columns in cas_operons_df
     merged = pd.merge(merged, cas_operons_df, left_on='host', right_on='sample', how='left')
 
     merged.to_csv("merged_crispr_coords.tsv", sep='\t', index=False)
@@ -117,14 +117,14 @@ def main():
             print("Hit details:")
             print(row)
             print("CRISPR coordinates: ", row['Start'], row['End'])
-        if row['genomic_start'] >= row['Start'] and row['genomic_end'] <= row['End']: # if the ring nuclease coordinates are within the CRISPR-Cas locus coordinates
+        if row['diamond_contig'] == row['Contig'] and (row['genomic_start'] >= row['Start'] and row['genomic_end'] <= row['End']): # if the ring nuclease coordinates are within the CRISPR-Cas locus coordinates and on the same contig
             if row["host"] == "GCF_000175295.2":
                 print("Ring nuclease is within CRISPR-Cas locus")
             merged.at[index, 'within_crispr'] = True
         #similar if statement but check if "close" to crispr locus
         elif row['genomic_start'] >= row['Start'] - crispr_closensess_cutoff and row['genomic_end'] <= row['End'] + crispr_closensess_cutoff:
             merged.at[index, 'close_crispr'] = True
-        if row['genomic_start'] >= row['prophage_begin'] and row['genomic_end'] <= row['prophage_end']:
+        if row['diamond_contig'] == row['prophage_scaffold'] and row['genomic_start'] >= row['prophage_begin'] and row['genomic_end'] <= row['prophage_end']:
             merged.at[index, 'within_prophage'] = True
 
 

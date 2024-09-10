@@ -14,3 +14,7 @@ FlaGs2/
 FlaGs2
 FlaGs2/*
 proc/
+collapsed_rn.tsv
+merged_crispr_coords.tsv
+rn_summary.tsv
+rn_viz_test/

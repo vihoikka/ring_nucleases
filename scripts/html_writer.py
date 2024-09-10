@@ -24,6 +24,7 @@ mastertable['Visualisation'] = viz_dir_relative + "/" + mastertable['Locus'] + '
 mastertable['Visualisation_table_path'] = viz_dir_relative + "/" + mastertable['Locus'] + '/' + mastertable['Locus'] + '_merged.csv'
 
 #tidy up the table by removing the following columns: Cas10, Cas5, Cas7, Cas10_GGDD, Cas10_GGDD_coord, Cas10_GGDD_seq, Cas10_GGDE_coord, Cas10_GGDE_seq, Cas10_HD, Cas10_HD_list, Cas10_DH, Cas10_HD_coord, Cas10_DH_coord, Cas10_coord, HD_E-value, unk_x, mem_x, locus_id, unk_y, unk01, sample
+#also remove rng, unk, val, Unnamed: 0new_eff, memnew_eff, rng_neweff, unknew_eff, valnew_eff, locusnew_eff, samplenew_eff, Unnamed: 0rn, ae1-1, ae1-2, phrogRN, proteaseRN, solosavedRN, unk01, locusrn, samplern, locusrn_fusions, rngnew_eff, rngrn, valrn
 mastertable = mastertable.drop(columns=['Cas10', 
                                         'Cas5', 
                                         'Cas7', 
@@ -63,8 +64,33 @@ mastertable = mastertable.drop(columns=['Cas10',
                                         'fusion_components',
                                         'fusion_protein',
                                         'effector_count_known_new_sum',
-                                        'no_validated_new_effectors'],
+                                        'no_validated_new_effectors',
+                                        'rng',
+                                        'rngnew_eff',
+                                        'unk',
+                                        'val',
+                                        'Unnamed: 0new_eff',
+                                        'memnew_eff',
+                                        'rng_neweff',
+                                        'unknew_eff',
+                                        'valnew_eff',
+                                        'locusnew_eff',
+                                        'samplenew_eff',
+                                        'Unnamed: 0rn',
+                                        'ae1-1',
+                                        'ae1-2',
+                                        'phrogRN',
+                                        'proteaseRN',
+                                        'solosavedRN',
+                                        'unk01',
+                                        'locusrn',
+                                        'samplern',
+                                        'locusrn_fusions',
+                                        'rngnew_eff',
+                                        'rngrn',
+                                        'valrn'],
                                         errors='ignore')
+
 
 # also drop Cas10_GGDE, GGDD_E-value, GGDE_E-value, ca5, no_of_unknowns, unknown_proteins, NE_ca5, val, rng, ae1, crn1, crn2, crn3, csx15, csx16, csx20, has_ring_nuclease, ring_nuclease, fusion_components, fusion_protein
 mastertable = mastertable.drop(columns=['Cas10_GGDE',
@@ -133,7 +159,7 @@ with open(output_html, 'w') as file:
 <!DOCTYPE html>
 <html>
 <head>
-        <title>CRISPR-Cas type III loci</title>
+        <title>Ring nucleases in CRISPR-Cas type III</title>
         <!-- include the CSS for DataTable -->
         <link href="https://cdn.datatables.net/v/dt/jq-3.7.0/jszip-3.10.1/dt-1.13.8/b-2.4.2/b-colvis-2.4.2/b-html5-2.4.2/cr-1.7.0/fh-3.4.0/rr-1.4.1/sb-1.6.0/datatables.min.css" rel="stylesheet">
 
@@ -196,8 +222,8 @@ with open(output_html, 'w') as file:
              
                 <div class="row">
                     <div class="col-12">
-                      <div class="card-title"><h1>Type III CRISPR-Cas locus browser</h1></div>
-                      <p class="text-muted">This website is released as Supplementary Material for Hoikkala, Graham & White 2024 paper, currently in review.</p>
+                      <div class="card-title"><h1>Ring nuclease browser for Type III CRISPR-Cas</h1></div>
+                      <p class="text-muted">This website is released as Supplementary Material for a manuscript in preparation. Currently for review only.</p>
                         <div class="card">
                           <div class="card-title">
                             <div class="card-body">
