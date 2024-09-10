@@ -42,7 +42,7 @@ known_effectors_table = pd.read_csv(known_effectors, sep='\t', header=None, conv
 validated_new_effectors_table = pd.read_csv(validated_new_effectors, sep='\t', header=None, converters={2:dict_converter})
 ring_nucleases_table = pd.read_csv(ring_nucleases, sep='\t', header=None, converters={2:dict_converter})
 
-print(validated_new_effectors_table)
+
 
 #for each, add columns: something, protein_id, effector_dict, locus
 columns = ["something", "protein_id", "effector_dict", "locus"]
@@ -50,8 +50,9 @@ known_effectors_table.columns = columns
 validated_new_effectors_table.columns = columns
 ring_nucleases_table.columns = columns
 
-print(ring_nucleases_table)
 
+#add column clade to ring_nucleases_table
+ring_nucleases_table["rn_clade"] = ring_nucleases_table["effector_dict"].apply(lambda x: x["clade"])
 
 
 #For each create a new column called "effector" and set it to the value of the dictionary key "effector" from the column "effector_dict"
@@ -61,6 +62,17 @@ validated_new_effectors_table["effector"] = validated_new_effectors_table["effec
 
 #rename the column "effector" in ring_nucleases_table to "ring_nuclease"
 ring_nucleases_table = ring_nucleases_table.rename(columns={"effector": "ring_nuclease"})
+
+print("Validated new effectors:")
+print(validated_new_effectors_table)
+print("Number of validated new effectors: ", len(validated_new_effectors_table))
+
+print("Known effectors:")
+print(validated_new_effectors_table)
+print("Number of known effectors: ", len(known_effectors_table))
+
+print("Ring nucleases:")
+print(ring_nucleases_table)
 
 #merge ring nucleases and known effectors based on protein_id. From known effectors only bring the effector column
 merged = pd.merge(ring_nucleases_table, known_effectors_table[["protein_id", "effector"]], on="protein_id", how="left")
@@ -72,10 +84,13 @@ merged = pd.merge(merged, validated_new_effectors_table[["protein_id", "effector
 #rename effector column validated_new_effector
 merged = merged.rename(columns={"effector": "validated_new_effector"})
 
+print("Merged:")
+print(merged)
+print("Number of merged: ", len(merged))
+
 #create new column effector which takes value from either known_effector or validated_new_effector, depending on which is not null
 merged["effector"] = merged["known_effector"].fillna(merged["validated_new_effector"])
 
-print(merged)
 
 #create column "fusion_protein" and set to True for all
 merged["fusion_protein"] = True
@@ -86,10 +101,15 @@ merged["fusion_components"] = merged["effector"] + "_" + merged["ring_nuclease"]
 #drop effector_dict
 merged = merged.drop(columns=["effector_dict", "something"])
 
+print("Merged:")
+print(merged)
+
 #remove rows where fusion_protein is nul or an empty string
 merged = merged[merged["fusion_components"].notnull()]
 merged = merged[merged["fusion_components"] != ""]
 
+print("Merged after removing empty fusion_components:")
+print(merged)
 
 #write to file
 merged.to_csv(output, sep='\t', index=False)

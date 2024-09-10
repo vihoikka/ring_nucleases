@@ -38,6 +38,24 @@ output_edges = args.out_edges
 
 
 # this dict is used to add a cOA attribute to the nodes output file
+coa_dict_known = {
+    "cami1": "cA4",
+    "calpl": "cA4",
+    "can1-2": "cA4",
+    "cora": "sam-amp",
+    # "can3": "cA6",
+    "csm6-ca6": "cA6",
+    "csx1": "cA4",
+    "csx23": "cA4",
+    "csx6": "cA4",
+    "nucc": "cA3",
+    # "tirsaved": "cA4",
+    "cam1": "cA4",
+    # "cam2": "cA3",
+    # "cam3": "cA4",
+    "saved-chat": "cA4",
+    "nucc": "cA3",
+}
 
 coa_dict_all = {
     "cami1": "cA4",
@@ -56,37 +74,6 @@ coa_dict_all = {
     "cam3": "cA4",
     "saved-chat": "cA4",
     "nucc": "cA3",
-    "crn1": "RN",
-    "crn2": "RN",
-    "crn3": "RN",
-    "csx15": "RN",
-    "csx16": "RN",
-    "csx20": "RN",
-}
-
-coa_dict_all_capital_map = {
-    "Cami1": "cA4",
-    "CalpL": "cA4",
-    "Can1-2": "cA4",
-    "CorA": "sam-amp",
-    "Csm6-2": "cA6",
-    "Csm6": "cA6",
-    "Csx1": "cA4",
-    "Csx23": "cA4",
-    "Csx6": "cA4",
-    "NucC": "cA3",
-    "TIR-SAVED": "cA4",
-    "Cam1": "cA4",
-    "Cam2": "cA3",
-    "Cam3": "cA4",
-    "SAVED-CHAT": "cA4",
-    "NucC": "cA3",
-    "Crn1": "RN",
-    "Crn2": "RN",
-    "Crn3": "RN",
-    "Csx15": "RN",
-    "Csx16": "RN",
-    "Csx20": "RN",
 }
 
 
@@ -99,9 +86,9 @@ def create_node_graph(effector_signal_map, mode):
     effectors = [
         effector for effector in effectors_all if effector in effector_signal_map
     ]
-    # add ring nucleases to the effectors list
-    effectors += ["crn1", "crn2", "crn3", "csx15", "csx16", "csx20"]
-
+    print(effectors)
+    # create dictionary with effectors as keys and empty string as values
+    effectors_coa_dict = dict.fromkeys(effectors, "")
     # create a dataframe with all possible combinations of effectors
     edges = pd.DataFrame(
         list(itertools.combinations(effectors, 2)), columns=["source", "target"]
@@ -171,12 +158,6 @@ def create_node_graph(effector_signal_map, mode):
         "cam3": "Cam3",
         "saved-chat": "SAVED-CHAT",
         "nucc": "NucC",
-        "crn1": "Crn1",
-        "crn2": "Crn2",
-        "crn3": "Crn3",
-        "csx15": "Csx15",
-        "csx16": "Csx16",
-        "csx20": "Csx20",
     }
 
     # rename the ids in the nodes table
@@ -198,34 +179,8 @@ def create_node_graph(effector_signal_map, mode):
     # save nodes
     nodes.to_csv(str(output_nodes_path), sep="\t", index=False)
 
-    # make all first letters in the effector_signal_map dict uppercase
-    effector_signal_map = {k.capitalize(): v for k, v in effector_signal_map.items()}
 
-    # create a version where any edges between effector nodes(whose value in the dict is not RN) have been removed and so have any edges between ring nucleases (those that have value RN in the dict)
-    for edge in edges.iterrows():
-        print("source: ", edge[1]["source"])
-        print("target: ", edge[1]["target"])
-        if (
-            coa_dict_all_capital_map[edge[1]["source"]] == "RN"
-            and coa_dict_all_capital_map[edge[1]["target"]] == "RN"
-        ):
-            print("dropping edge: ", edge[1]["source"], " - ", edge[1]["target"])
-            edges.drop(edge[0], inplace=True)
-        elif (
-            coa_dict_all_capital_map[edge[1]["source"]] != "RN"
-            and coa_dict_all_capital_map[edge[1]["target"]] != "RN"
-        ):
-            print("dropping edge: ", edge[1]["source"], " - ", edge[1]["target"])
-            edges.drop(edge[0], inplace=True)
-        else:
-            print("keeping edge: ", edge[1]["source"], " - ", edge[1]["target"])
-
-    # save the edges table
-    edges.to_csv(
-        str(output_edges_path.split(".")[0] + "_noRN.tsv"), sep="\t", index=False
-    )
-
-
+create_node_graph(coa_dict_known, "known")
 create_node_graph(coa_dict_all, "all")
 
 # pieGraphs = {}

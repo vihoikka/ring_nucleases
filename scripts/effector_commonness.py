@@ -47,7 +47,7 @@ for e_object in effector_objects:
     e_object.mean_temperature = mastertable[mastertable[name] == True]['mean_temperature'].mean()
     e_object.std_temperature = mastertable[mastertable[name] == True]['mean_temperature'].std()
     e_object.GGDD_prop = mastertable[mastertable[name] == True]['GGDD_hmm_boolean'].mean()
-    e_object.unknown_proteins = mastertable[mastertable[name] == True]['unknown_proteins'].mean()
+    #e_object.unknown_proteins = mastertable[mastertable[name] == True]['unknown_proteins'].mean()
     print(mastertable[mastertable[name] == True]['genus'])
     try:
         e_object.most_common_genus = mastertable[mastertable[name] == True]['genus'].value_counts().idxmax()
@@ -62,7 +62,7 @@ for e_object in effector_objects:
     print(e_object.mean_temperature)
     print(e_object.std_temperature)
     print(e_object.GGDD_prop)
-    print(e_object.unknown_proteins)
+    #print(e_object.unknown_proteins)
     print(e_object.most_common_genus)
     print(e_object.most_common_genus_prop)
     print(e_object.bacteria_prop)
