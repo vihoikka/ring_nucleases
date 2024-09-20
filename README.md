@@ -3,7 +3,7 @@ This repo builds on top of another repo ([https://github.com/vihoikka/hoikkala_e
 This pipeline is modified towards finding ring nucleases (RNs) in type III CRISPR-Cas loci.
 It also looks at phage genomes for RNs. The instructions below assume basic understanding of Snakemake, python and shell/bash environment.
 
-## Requirements:
+## Requirements
 * Unix based machine (Linux, MacOS)
 * Conda
 * Snakemake
@@ -11,7 +11,7 @@ It also looks at phage genomes for RNs. The instructions below assume basic unde
 
 *Other dependencies are installed by the pipeline when running with the --use-conda flag.*
 
-### Databases:
+### Databases
 #### Databases included in this repository:
 * A DIAMOND database of ring nucleases
 * Cas10 HMM database
@@ -19,8 +19,8 @@ It also looks at phage genomes for RNs. The instructions below assume basic unde
 * Ring nuclease HMM database
 * A temperature database for prokaryotes ([TEMPURA](http://togodb.org/db/tempura))
 
-#### Databases that require custom installation:
-* NCBI refseq genomes of bacteria and archaea (.fna, .faa and .gff files). I recommend downloading the database using ncbi-datasets (taxon 2 for bacteria; taxon 2157):
+#### Databases that require custom installation
+* NCBI refseq genomes of bacteria and archaea (.fna, .faa and .gff files). I recommend downloading the database using ncbi-datasets (taxon 2 for bacteria; taxon 2157 for archaea):
 ```shell
 datasets download genome taxon 2 --filename bacteria_genomes.zip --include gff3,genome,protein --dehydrated --annotated --assembly-level complete --assembly-source RefSeq
 unzip bacteria_genomes.zip
