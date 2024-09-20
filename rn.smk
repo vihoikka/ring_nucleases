@@ -3,66 +3,55 @@ This pipeline is focused in ring nucleases and transcription factors in type III
 Built on top of new_effectors.smk from a previous project
 '''
 
-project = "run1"
+ncbi_email = "youremailhere" #ADD YOUR EMAIL HERE. This is used by NCBI to identify the user and prevent abuse of their services
+project = "run1" #the destination folder for the current project run
 
+### Paths that need to be customised
+base_path = "/home/vhoikkal/scratch/private/runs/ring_nucleases" + "/" + project #where the results will be saved
+program_root = "/home/vhoikkal/scratch/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder" #path to the pipeline root (where the Snakefile is)
+validated_effectors_folder = "data/effectors_hmm_new"
+ring_nuclease_folder = "data/rn_hmm"
+genomes_folder = "/home/vhoikkal/scratch/private/databases/ncbi_genomes/bacteria/ncbi_dataset/data"
+archaea_folder = "/home/vhoikkal/scratch/private/databases/ncbi_genomes/archaea/ncbi_dataset/data"
+genomes_json = os.path.join(genomes_folder,"assembly_data_report.jsonl")
+millard_fa = "/path/to/4May2024_genomes.fa"
+millard_proteins = "/path/to/4May2024_vConTACT2_proteins.faa"
+millard_metadata = "/path/to/4May2024_data.tsv"
+
+### Multithreading settings. Used by some rules.
 thread_hogger = 50 #number of threads dedicated to a single thread-hogging rule. Meant for rules that do not rely on wildcards.
 thread_small = 5 #for wildcard tasks that benefit from multithreading
 thread_ultrasmall = 1 #for single-thread wildcard based rules
 
-ncbi_email = "ville.hoikkala@jyu.fi"
-
-local_protein_blast_db = "/mnt/shared/apps/databases/ncbi/nr"
-rn_diamond_db = "/home/vhoikkal/scratch/private/databases/custom_hmm/ring_nucleases/diamond_fastas/renamed_headers/RN_diamond_db.dmnd"
-
-base_path = "/home/vhoikkal/scratch/private/runs/ring_nucleases" + "/" + project
-program_root = "/home/vhoikkal/scratch/private/pipelines/ring_nucleases/crispr_type_iii_effector_finder"
-
-webflags_db = base_path + "/home/vhoikkal/scratch/private/databases/webflags"
-
+### Parameters
 cas10_cluster_threshold = 0.9 #initial Cas10 clustering threshold
-crispr_locus_interference_cutoff = 0 #cutoff for CRISPR loci interference completeness. Loci with less than this percentage of interference genes present are discarded
+crispr_locus_interference_cutoff = 0 #cutoff for CRISPR loci interference completeness. Loci with less than this percentage of interference genes present are discarded. 0 = disabled
+protein_clustering = str(config["protein_clustering"]) #threshold for protein clustering. Included in the run command (see readme file in github)
+getGenomesBy = str(config["getGenomesBy"]) #Included in the run command (see readme file in github). Default is 'local' but can be 'remote' for fetching genomes from NCBI (may not work as has not been tested recently)
+cas10_anchor = config["cas10_anchor"] #include only genomes where Cas10 is found. Included in the run command (see readme file in github).
+catyper_hmm_evalue = "1e-10" #minimum e-value for HMMER search in cATyper (script that finds effectors)
+genome_count = 51920 #number of genomes to sample if genome_mode is set to random
+subsampling_seed = 666 #seed for random sampling of genomes
+list_of_RNs = ["crn1", "crn2", "crn3", "csx15", "csx16", "csx20"] #list of ring nucleases to search for
+blast_headers = "qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore stitle sacc"
+blast_headers_group4 = "qseqid\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tlocus"
+cas10_e_value = "1e-20" #e-value for Cas10 search
+corA_hmm_value = "1e-20" #e-value for CorA search
+group4_pfam_headers = "target_name\taccession\tquery_name\taccession\tE-value\tscore\tbias\tE-value\tscore\tbias\texp\treg\tclu\tov\tenv\tdom\trep\tinc\tdescription_of_target"
 
-protein_clustering = str(config["protein_clustering"])
-getGenomesBy = str(config["getGenomesBy"])
-cas10_anchor = config["cas10_anchor"]
-catyper_hmm_evalue = "1e-10"
-
-hmm_msa_folder = "/home/vhoikkal/scratch/private/databases/custom_hmm/known_type_iii_effectors/profiles" #folder names within this folder are used for creating effector dictionary
-hmm_database_folder = "/home/vhoikkal/scratch/private/databases/custom_hmm/known_type_iii_effectors/concatenated_profiles" #contains the concatenated and hmmpressed hmm profiles
+### Databases
+rn_diamond_db = "data/RN_diamond_db.dmnd"
+cas10_db = "data/cas10_hmm/all_cas10s.hmm"
+modified_cas10_hd = "data/cas10_hmm/cas10/HD_HMM.msa" #modified cas10 hmm profile for hmmsearch
+hmm_msa_folder = "data/effectors_hmm/profiles" #folder names within this folder are used for creating effector dictionary
+hmm_database_folder = "data/effectors_hmm/concatenated_profiles" #contains the concatenated and hmmpressed hmm profiles
 hmm_database_file = "all.hmm" #filename for the concatenated hmmpressed hmm profiles
+TM_path = "data/TMHMM"
+validated_effectors_hmm_db = "data/effectors_hmm_new/all.hmm"
+ring_nuclease_db = "data/rn_hmm/all.hmm"
+temperature_data = "data/temperature/200617_TEMPURA.csv"
 
-cas10_db = "/mnt/shared/scratch/vhoikkal/private/databases/custom_hmm/cas10/all_cas10s.hmm"
-modified_cas10_hd = "/home/vhoikkal/scratch/private/databases/custom_hmm/cas10/HD_HMM.msa" #modified cas10 hmm profile for hmmsearch
-
-carfsaved_db = "/home/vhoikkal/scratch/private/databases/carfsaved/carfsaved.hmm"
-
-TM_path = "/mnt/shared/scratch/vhoikkal/private/databases/TM"
-additional_cas_proteins = "/mnt/shared/scratch/vhoikkal/private/databases/cas_proteins"
-validated_effectors_hmm_db = "/home/vhoikkal/scratch/private/databases/custom_hmm/validated_new_effectors/concatenated_profiles/all.hmm"
-validated_effectors_folder = "/home/vhoikkal/scratch/private/databases/custom_hmm/validated_new_effectors"
-
-ring_nuclease_db = "/home/vhoikkal/scratch/private/databases/custom_hmm/ring_nucleases/concatenated_profiles/all.hmm"
-ring_nuclease_folder = "/home/vhoikkal/scratch/private/databases/custom_hmm/ring_nucleases"
-
-blender_hmm_db = "/home/vhoikkal/scratch/private/databases/custom_hmm/ring_nucleases/profiles/RN_blender/RN_blender.hmm"
-
-#public databases (local)
-cogs_db = "/home/vhoikkal/scratch/private/databases/cogs/COG_KOG"
-pfam_db = "/home/vhoikkal/scratch/private/databases/pfam/Pfam-A.hmm"
-pdb30_db = "/home/vhoikkal/scratch/private/databases/pdb30"
-
-temperature_data = "/home/vhoikkal/scratch/private/databases/tempura/200617_TEMPURA.csv"
-
-
-genomes_folder = "/home/vhoikkal/scratch/private/databases/ncbi_genomes/bacteria/ncbi_dataset/data"
-archaea_folder = "/home/vhoikkal/scratch/private/databases/ncbi_genomes/archaea/ncbi_dataset/data"
-genome_count = 51920
-subsampling_seed = 666
-
-genomes_json = os.path.join(genomes_folder,"assembly_data_report.jsonl")
-
-list_of_RNs = ["crn1", "crn2", "crn3", "csx15", "csx16", "csx20"]
-
+# Define paths depending on whether Cas10 is used as an anchor
 if cas10_anchor == False:
     prefiltering_wildcards = "05_host_genomes"
     prefiltering_host_genomes = "06_host_genomes"
@@ -70,6 +59,7 @@ elif cas10_anchor == True:
     prefiltering_wildcards = "02_host_wildcards"
     prefiltering_host_genomes = "03_host_genomes"
 
+#The functions below are mostly used for concatenating the outputs of rules that have wildcards.
 def aggregate_crisprcas(wildcards):
     if getGenomesBy == "local":
         checkpoint_output = checkpoints.expand_host_genomelist_to_wildcards.get(**wildcards).output[0]
@@ -313,16 +303,6 @@ def aggregate_CorA_sequences(wildcards):
     return expand(base_path + "/09_crispr_iii_CorA/loci/{c}/CorA.faa", c=cvals)
 
 
-def aggregate_unknowns(wildcards):
-    checkpoint_output = checkpoints.type_iii_wildcarder.get(**wildcards).output[0]
-    cvals = glob_wildcards(os.path.join(checkpoint_output,"{c}/cas_operons.tsv")).c
-    return expand(base_path + "/30_unknown_effectors/{c}/{c}_unknown_proteins.faa", c=cvals)
-
-def aggregate_unknowns_locus_info(wildcards):
-    checkpoint_output = checkpoints.type_iii_wildcarder.get(**wildcards).output[0]
-    cvals = glob_wildcards(os.path.join(checkpoint_output,"{c}/cas_operons.tsv")).c
-    return expand(base_path + "/30_unknown_effectors/{c}/{c}_locus_unknown_info.tsv", c=cvals)
-
 def aggregate_crispr_locus_proteins(wildcards):
     '''
     Aggregates the outputs of the crispr_locus_proteins rule.
@@ -347,64 +327,20 @@ def aggregate_group4_blasts(wildcards):
     cvals = glob_wildcards(os.path.join(checkpoint_output,"{c}/cas_operons.tsv")).c
     return expand(base_path + "/group4_prober/{c}/{c}.blast", c=cvals)
 
-def aggregate_known_effector_wildcards(wildcards):
-    checkpoint_output = checkpoints.effector_wildcarder.get(**wildcards).output[0]
-    effector_vals = glob_wildcards(os.path.join(checkpoint_output,"{effector}.eff")).effector
-    return expand(base_path + "/45_effector_tree/{effector}_tree.txt", effector=effector_vals)
-
-def aggregate_known_effector_wildcarder(wildcards):
-    checkpoint_output = checkpoints.effector_wildcarder.get(**wildcards).output[0]
-    effector_vals = glob_wildcards(os.path.join(checkpoint_output,"{effector}.eff")).effector
-    return expand(base_path + "/40_known_effector_wildcards/{effector}.eff", effector=effector_vals)
-
-def aggregate_known_effector_annotations(wildcards):
-    checkpoint_output = checkpoints.effector_wildcarder.get(**wildcards).output[0]
-    effector_vals = glob_wildcards(os.path.join(checkpoint_output,"{effector}.eff")).effector
-    return expand(base_path + "/43_effector_hmmer_analysis/{effector}/{effector}_sorted_filtered_mapped.tsv", effector=effector_vals)
-
-def aggregate_cATyper_hhsuite(wildcards):
-    checkpoint_output = checkpoints.effector_wildcarder.get(**wildcards).output[0]
-    effector_vals = glob_wildcards(os.path.join(checkpoint_output,"{effector}.eff")).effector
-    return expand(base_path + "/42_effector_hhsuite/{effector}/{effector}_all.tsv", effector=effector_vals)
-
-def aggregate_cATyper_hhsuite_parser(wildcards):
-    checkpoint_output = checkpoints.effector_wildcarder.get(**wildcards).output[0]
-    effector_vals = glob_wildcards(os.path.join(checkpoint_output,"{effector}.eff")).effector
-    return expand(base_path + "/42_effector_hhsuite/{effector}/{effector}_hhsuite_parsed.tsv", effector=effector_vals)
-
-def aggregate_cATyper_hhsuite_parser_cogs(wildcards):
-    checkpoint_output = checkpoints.effector_wildcarder.get(**wildcards).output[0]
-    effector_vals = glob_wildcards(os.path.join(checkpoint_output,"{effector}.eff")).effector
-    return expand(base_path + "/42_effector_hhsuite_cogs/{effector}/{effector}_hhsuite_parsed_cogs.tsv", effector=effector_vals)
-
 def aggregate_cora_neighbourhoods(wildcards):
     checkpoint_output = checkpoints.cora_neighbourhood_preparation.get(**wildcards).output[0]
     cora_loci = glob_wildcards(os.path.join(checkpoint_output,"{cora_locus}_crispr_locus_proteins.faa")).cora_locus
     return expand(base_path + "/52_cora_neighbour_analysis/{cora_locus}/neighbourhood_results.tsv", cora_locus=cora_loci)
 
-def aggregate_webflags_cluster_small_unk_proteins_wildcarded(wildcards):
-    checkpoint_output = checkpoints.small_unk_protein_clustered_wildcarder.get(**wildcards).output[0]
-    proteinvals = glob_wildcards(os.path.join(checkpoint_output,"{protein}.txt")).protein
-    return expand(base_path + "/96_small_unk_clustered_webflags_wildcards/{protein}/webflags.done", protein=proteinvals)
+print("Starting ring nuclease pipeline")
 
+#Everything below are rules for the pipeline. Some functions may be scattered between.
 
-#Cas10 blast parameters
-blast_headers = "qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore stitle sacc"
-blast_headers_group4 = "qseqid\tsseqid\tpident\tlength\tmismatch\tgapopen\tqstart\tqend\tsstart\tsend\tevalue\tbitscore\tlocus"
-cas10_e_value = "1e-20"
-corA_hmm_value = "1e-20"
-
-group4_pfam_headers = "target_name\taccession\tquery_name\taccession\tE-value\tscore\tbias\tE-value\tscore\tbias\texp\treg\tclu\tov\tenv\tdom\trep\tinc\tdescription_of_target"
-
-print("Starting ring nuclease / transcription factor pipeline")
-
-rule all: 
+rule all:
     input: base_path + "/done"
     #input: base_path + "/01_genomelist/annotated_genomelist.csv"
     #input: base_path + "/062_genomes_cas10/{i}/{i}_cas10.tsv"
     #input: base_path + "/064_cas10_clusters/cas10_all.faa"
-     
-
 
 rule write_down_genome_info:
     '''
@@ -974,251 +910,6 @@ rule analyse_cATyper_effector_scores:
         touch {output.effector_scores_summary}
         '''
 
-checkpoint effector_wildcarder:
-    '''
-    This rule creates wildcards for each previosly known effector.
-    Wildcards are used downstream when creating phylogenetic trees etc for each effector.
-    '''
-    output:
-        directory(base_path + "/40_known_effector_wildcards")
-        #hmm_targets = base_path + "/40_known_effector_wildcards/{effector}/{effector}.txt"
-    params:
-        hmm_targets = base_path + "/40_known_effector_wildcards/alltargets.txt",
-        hmm_msa_folder = hmm_msa_folder,
-        outdir = base_path + "/40_known_effector_wildcards",
-    threads: thread_small
-    run:
-        import glob
-        #Equivalent of `mkdir`
-        Path(params.outdir).mkdir(parents=True, exist_ok=True)
-        
-        #Equivalent of `ls {hmm_msa_folder}/*/*.hmm > {hmm_targets}`
-        with open(params.hmm_targets, 'w') as f:
-            files = glob.glob(f"{params.hmm_msa_folder}/*/*.hmm") #get all files in the hmm_msa_folder
-            f.write('\n'.join(files))
-
-        with open(params.hmm_targets, 'r') as f:
-            lines = f.readlines()
-            for line in lines:
-                filename = os.path.basename(line) # get filename from path
-                effector = re.split("\.", filename)[0] #remove extension
-                if "#" not in line:
-                    effector = re.split("_", effector)[1]
-                elif "#" in line: #in case a single effector is characterised by multiple hmm profiles, we mark the filenames with # followed by the effector, e.g ca6_csm6-ca6_italicus#csm6-ca6
-                    effector = re.split("#", effector)[1]
-                print(effector)
-                with open(f'{params.outdir}/{effector}.eff', 'w') as f:
-                    f.write(effector)
-
-rule effector_fetcher:
-    '''
-    Fetches protein sequences for an effector from catyper_analysis outputs
-    '''
-    input:
-        aggregate_known_effector_wildcarder,
-        catyper_done = rules.concatenate_cATyper_analysis.output, #this indicates we can safely probe the folders for effector sequences
-    output:
-        multifasta = base_path + "/41_known_effector_mf/{effector}.faa",
-    threads: thread_ultrasmall
-    shell:
-        '''
-        effector_name={wildcards.effector}
-        echo "Fetching effector sequences for {wildcards.effector}"
-        touch {output.multifasta}
-        find {base_path}/11_cATyper_analysis/ -name \"*${{effector_name}}*.faa\" -exec cat {{}} \; >> {output.multifasta}
-        '''
-
-rule effector_hmmer:
-    '''
-    Uses hmmscan against pfam to annotate the discovered effectors' domains.
-    Output used when plotting tree with R
-    '''
-    input:
-        multifasta = rules.effector_fetcher.output.multifasta
-    output:
-        raw_hmm = base_path + "/42_effector_hmmer/{effector}.hmm",
-        #filtered_hmm_tsv = base_path + "/42_effector_hmmer/{effector}.tsv",
-    params:
-        base_path = base_path + "/42_effector_hmmer",
-        pfam_db = pfam_db
-    threads: thread_small
-    conda: "envs/hmmer.yaml"
-    log:
-        out = base_path + "/42_effector_hmmer/logs/{effector}.out",
-        err = base_path + "/42_effector_hmmer/logs/{effector}.err",
-    shell:
-        '''
-        python3 scripts/effector_hmmer.py --input {input.multifasta} --output_basepath {params.base_path} --effector {wildcards.effector} --pfam_path {params.pfam_db} 2> {log.err} 1> {log.out}
-        '''
-
-rule cATyper_hmm_search_hhsuite_pdb:
-    '''
-    HMM search against the PDB database using HHsuite.
-    Using a custom made wrapper to first divide the multifasta into separate fastas for each protein as required by hhblits.
-    The wrapper divides a multifasta (wildcard {c}) into its constituent proteins and then runs hhblits on each protein.
-    The resulting files are .tsv files, each corresponding to a single protein within the effector wildcard (e.g. RelE protein X)
-    These individual .tsv files are then concatenated into a single .tsv file for each effector and fed to the parse_hhsuite rule.
-    '''
-    input:
-        multifasta = rules.effector_fetcher.output.multifasta
-    output:
-        hhsuite_concat = base_path + "/42_effector_hhsuite/{effector}/{effector}_all.tsv",
-    params:
-        outdir = base_path + "/42_effector_hhsuite/{effector}",
-        pdb30 = pdb30_db + "/pdb30",
-    conda: "envs/hhsuite.yaml"
-    threads: thread_small
-    log:
-        out = base_path + "/42_effector_hhsuite/logs/{effector}.out",
-        err = base_path + "/42_effector_hhsuite/logs/{effector}.err",
-    shell:
-        '''
-        python3 scripts/hhblits_wrapper.py --input {input.multifasta} --output_basepath {params.outdir} --database {params.pdb30}
-        cat {params.outdir}/hhblits/*.tsv > {output.hhsuite_concat}
-        '''
-
-rule parse_hhsuite:
-    '''
-    Parser output from HHSuite (PDB)
-    '''
-    input: rules.cATyper_hmm_search_hhsuite_pdb.output.hhsuite_concat
-    output: base_path + "/42_effector_hhsuite/{effector}/{effector}_hhsuite_parsed.tsv"
-    conda: "envs/hhsuite.yaml"
-    threads: thread_small
-    params:
-        database = "PDB"
-    shell:
-        '''
-        python3 scripts/hhsuite_parser.py --infile {input} --outfile {output}  --database {params.database}
-        '''
-
-rule concatenate_cATyper_hmm_hhsuite:
-    input: aggregate_cATyper_hhsuite_parser
-    output: base_path + "/42_effector_hhsuite/cATyper_all.tsv"
-    threads: thread_small
-    shell:
-        """
-        awk '(NR == 1) || (FNR > 1)' {input} > {output}
-        """
-
-rule cATyper_hmm_search_hhsuite_cog:
-    '''
-    HMM search against the COG database using HHsuite.
-    Using a custom made wrapper to first divide the multifasta into separate fastas for each protein as required by hhblits.
-    The wrapper divides a multifasta (wildcard {c}) into its constituent proteins and then runs hhblits on each protein.
-    The resulting files are .tsv files, each corresponding to a single protein within the effector wildcard (e.g. RelE protein X)
-    These individual .tsv files are then concatenated into a single .tsv file for each effector and fed to the parse_hhsuite rule.
-    '''
-    input:
-        multifasta = rules.effector_fetcher.output.multifasta
-    output:
-        hhsuite_concat = base_path + "/42_effector_hhsuite_cogs/{effector}/{effector}_all.tsv",
-    params:
-        outdir = base_path + "/42_effector_hhsuite_cogs/{effector}",
-        cogs = cogs_db,
-    conda: "envs/hhsuite.yaml"
-    threads: thread_small
-    log:
-        out = base_path + "/42_effector_hhsuite_cogs/logs/{effector}.out",
-        err = base_path + "/42_effector_hhsuite_cogs/logs/{effector}.err",
-    shell:
-        '''
-        python3 scripts/hhblits_wrapper.py --input {input.multifasta} --output_basepath {params.outdir} --database {params.cogs} 2> {log.err} 1> {log.out}
-        #check if any .tsv files exist in {params.outdir}/hhblits
-        if [ -s {params.outdir}/hhblits/*.tsv ]; then
-            cat {params.outdir}/hhblits/*.tsv > {output.hhsuite_concat}
-        else
-            touch {output.hhsuite_concat}
-        fi
-        '''
-
-rule parse_hhsuite_cogs:
-    input: rules.cATyper_hmm_search_hhsuite_cog.output.hhsuite_concat
-    output: base_path + "/42_effector_hhsuite_cogs/{effector}/{effector}_hhsuite_parsed_cogs.tsv"
-    conda: "envs/hhsuite.yaml"
-    params:
-        database = "COGs",
-        mapping = cogs_db + "/cog-20.def.tab"
-    threads: thread_small
-    log:
-        out = base_path + "/42_effector_hhsuite_cogs/logs/{effector}.out",
-        err = base_path + "/42_effector_hhsuite_cogs/logs/{effector}.err",
-    shell:
-        '''
-        python3 scripts/hhsuite_parser.py --infile {input} --outfile {output} --database {params.database} --mapping {params.mapping} 2> {log.err} 1> {log.out}
-        '''
-
-rule concatenate_cATyper_hmm_hhsuite_cogs:
-    input: aggregate_cATyper_hhsuite_parser_cogs
-    output: base_path + "/42_effector_hhsuite_cogs/cATyper_all_hmm_cogs.tsv"
-    threads: thread_small
-    shell:
-        """
-        awk '(NR == 1) || (FNR > 1)' {input} > {output}
-        """
-
-rule effector_analyse_domains:
-    '''
-    Takes the HMM output from effector_hmmer and creates a simplified table of domains for each effector.
-    This is only for the Pfam analysis.
-    LEGACY: Links protein ID to each effector (the original effector fastas previously contained locus IDs, not protein IDs)
-    '''
-    input:
-        raw_hmm = rules.effector_hmmer.output.raw_hmm,
-        multifasta = rules.effector_fetcher.output.multifasta
-    output:
-        domains = base_path + "/43_effector_hmmer_analysis/{effector}/{effector}_sorted_filtered_mapped.tsv",
-        filtered_hmm_tsv = base_path + "/43_effector_hmmer_analysis/{effector}/{effector}_sorted_filtered.tsv",
-        sorted_hmm_tsv = base_path + "/43_effector_hmmer_analysis/{effector}/{effector}_sorted.tsv"
-    params:
-        base_path = base_path + "/43_effector_hmmer_analysis",
-        effector_locus_map = base_path + "/43_effector_hmmer_analysis/{effector}/{effector}.locus_map.tsv",
-    threads: thread_small
-    log:
-        out = base_path + "/43_effector_hmmer_analysis/logs/{effector}.out",
-        err = base_path + "/43_effector_hmmer_analysis/logs/{effector}.err"
-    shell:
-        '''
-        cat {base_path}/11_cATyper_analysis/*/*_protein_to_effector.tsv | grep "{wildcards.effector}" > {params.effector_locus_map}
-        python3 scripts/effector_hmmer_analyse.py --input {input.raw_hmm} --multifasta {input.multifasta} --output_basepath {params.base_path} --effector {wildcards.effector} --effector_locus_map {params.effector_locus_map} 2> {log.err} 1> {log.out}
-        '''
-
-rule effector_align:
-    input: rules.effector_fetcher.output.multifasta
-    output: base_path + "/44_effector_alignments/{effector}.afa",
-    conda: "envs/trees.yaml"
-    log:
-        out = base_path + "/44_effector_alignments/logs/{effector}.out",
-        err = base_path + "/44_effector_alignments/logs/{effector}.err"
-    threads: thread_small
-    shell:
-        '''
-        muscle -super5 "{input}" -output "{output}" -threads {threads} 2> {log.err} 1> {log.out} 
-        '''
-
-
-rule effector_tree:
-    input: rules.effector_align.output
-    output: base_path + "/45_effector_tree/{effector}_tree.txt",
-    conda: "envs/trees.yaml"
-    threads: thread_small
-    shell:
-        '''
-        FastTree -wag -gamma {input} > {output}
-        '''
-
-
-rule concatenate_effector_wildcards:
-    input:
-        trees = aggregate_known_effector_wildcards,
-        annotations = aggregate_known_effector_annotations,
-        checkpoint = aggregate_known_effector_wildcarder
-    output: base_path + "/known_effectors_finished.txt"
-    threads: thread_small
-    shell:
-        '''
-        cat {input} > {output}
-        '''
 
 rule crispr_locus_proteins:
     '''
@@ -1358,155 +1049,6 @@ rule typeIII_characterizer:
         touch {output.Cas5_fasta}
         touch {output.Cas7_fasta}
         '''
-
-# rule Cas10_fusion_finder:
-#     '''
-#     Uses the same HMM library as cAtyper to look for additional domains in Cas10 proteins.
-#     '''
-#     input:
-#         Cas10_fasta = base_path + "/09_crispr_iii_CorA/loci/{c}/{c}_Cas10.faa",
-#     output:
-#         catyper = base_path + "/10_cATyper_hmm/{c}/{c}_cATyper_results.tsv",
-#         hmm_targets = base_path + "/10_cATyper_hmm/{c}/{c}_cATyper_hmm_targets.tsv",    
-#         hmm_rows = base_path + "/10_cATyper_hmm/{c}/{c}_cATyper_hmm_rows.tsv",
-#         temp_rows = base_path + "/10_cATyper_hmm/{c}/{c}_temp_rows.out",
-#     params:
-#         outdir = base_path + "/10_cATyper_hmm/{c}",
-#         hmm_msa_folder = hmm_msa_folder,
-#         host_genomes_folder = base_path + "/06_host_genomes",
-#         hmm_profile = hmm_database_folder + "/" + hmm_database_file,
-#         temp_hmm = base_path + "/10_cATyper_hmm/{c}/{c}_temp.out",
-#         temp_rows = base_path + "/10_cATyper_hmm/{c}/{c}_temp_rows.out",
-#     conda: "envs/hmmer.yaml"
-#     log:
-#         out = base_path + "/10_cATyper_hmm/logs/{c}.out",
-#         err = base_path + "/10_cATyper_hmm/logs/{c}.err",
-#         out2 = base_path + "/10_cATyper_hmm/logs/{c}.out2",
-#         err2 = base_path + "/10_cATyper_hmm/logs/{c}.err2",
-#     shell:
-#         '''
-#         python scripts/catyper_prepper_10.py --locus {wildcards.c} --cas_operons_file {input.crispr_positive_samples} --output_folder {params.outdir} --host_genomes_folder {params.host_genomes_folder} --mode pre_hmm 2> {log.err} 1> {log.out}
-#         echo "Running hmmscan" >> {log.out}
-#         hmmscan --domtblout {params.temp_hmm} --cpu 8 -E {catyper_hmm_evalue} {params.hmm_profile} {output.contig_proteins}  &> /dev/null
-#         echo "Removing commented rows" >> {log.out}
-#         grep -v "#" {params.temp_hmm} > {output.temp_rows} ||:
-#         echo "Writing header" >> {log.out}
-#         echo -e 'target_name\taccession\ttlen\tquery_name\taccession\tqlen\tE-value_fullseq\tscore_fullseq\tbias_fullseq\t#_domain\tof_domain\tc-Evalue_domain\ti-Evalue_domain\tscore_domain\tbias_domain\t_hmm_from\thmm_to\t_ali_from\tali_to\tenv_from\tenv_to\tacc\tdescription' > {output.hmm_rows}
-#         echo "Checking if hits were found" >> {log.out}
-#         if [ -s {output.temp_rows} ]; then 
-#             echo "Hits found for {wildcards.c}" >> {log.out}
-#             cat {output.temp_rows} >> {output.hmm_rows}
-#         else
-#             echo "No hits found for {wildcards.c}" >> {log.out}
-#             touch {output.hmm_rows}
-#         fi
-
-#         echo "Listing targets" >> {log.out}
-#         ls {params.hmm_msa_folder}/*/*.hmm > {output.hmm_targets}
-
-#         echo "Running cATyper" >> {log.out}
-#         python scripts/catyper_prepper_10.py --locus {wildcards.c} --cas_operons_file {input.crispr_positive_samples} --output_folder {params.outdir} --host_genomes_folder {params.host_genomes_folder} --mode post_hmm --hmm_targets {output.hmm_targets} --hmm_rows {output.hmm_rows} --catyper_out {output.catyper}  2> {log.err2} 1> {log.out2}
-#         touch {output.cora}
-#         '''
-
-rule unknown_finder:
-    '''
-    Probes the CCTyper outputs for unknown genes and/or genes with low E-values in the HMM search.
-    In the future, the info file could contain the following columns:
-        - locus_id
-        - protein id
-        - protein length
-        - protein sequence
-        - presence of CARF/SAVED domain
-        - presence of HEPN domain
-        - transmembrane properties
-    Also outputs a fasta file with the unknown proteins. The output files are completely empty if no unknown proteins are found.
-    
-    For transmembrane prediction, we use TMHMM. This is not a conda package, so is installed
-    using pip. The pip freeze command + grep is used to check if the package is already installed.
-    NOTE: TMHMM will fail out of the box. A file called /home/ubuntu/miniconda3/envs/environmentname/lib/python3.9/site-packages/tmhmm/api.py in the conda installation will need this 
-    to bypass a non-crucial warning that causes the crash:
-    import warnings
-        warnings.filterwarnings('ignore', category=RuntimeWarning)
-    '''
-    input:
-        cctyper = base_path + "/071_cctyper_loci/{c}/cas_operons.tsv",
-        hmm = rules.cATyper_hmm_search.output.temp_rows
-    output:
-        unknown_proteins = base_path + "/30_unknown_effectors/{c}/{c}_unknown_proteins.faa",
-        info = base_path + "/30_unknown_effectors/{c}/{c}_unknown_proteins_info.tsv", #each row is a protein
-        locus_info = base_path + "/30_unknown_effectors/{c}/{c}_locus_unknown_info.tsv", #each row is a locus
-    params:
-        outputfolder = base_path + "/30_unknown_effectors/{c}",
-        host_genomes_folder = base_path + "/06_host_genomes",
-        cctyper_folder = base_path + "/07_cctyper",
-        sample_folder = base_path + "/06_host_genomes/", #this is used to find the gff and proteins files that are strain-, not locus-specific
-        extra_cas_db = additional_cas_proteins + "/new_effectors_additional_cas.dmnd",
-    conda: "envs/gff_utils.yaml"
-    log:
-        out = base_path + "/30_unknown_effectors/logs/{c}.out",
-        err = base_path + "/30_unknown_effectors/logs/{c}.err"
-    threads: thread_ultrasmall
-    shell:
-        '''
-        pip freeze | grep tmhmm.py || pip install tmhmm.py
-        python3 scripts/unknown_finder.py --locus_id {wildcards.c} --cctyper {input.cctyper} --hmm {input.hmm} --additional_cas_db {params.extra_cas_db} --outputfolder {params.outputfolder} --info_out {output.info} --unknown_proteins_output {output.unknown_proteins} --unknown_proteins_output_150 {output.unknown_proteins_150}--host_genomes_folder {params.host_genomes_folder} --cctyper_path {params.cctyper_folder} --sample_folder {params.sample_folder} --output_locus_info {output.locus_info} 2> {log.err} 1> {log.out}
-        touch {output.unknown_proteins}
-        touch {output.info}
-        '''
-
-rule concatenate_unknowns:
-    input: aggregate_unknowns
-    output:
-        proteins = base_path + "/30_unknown_effectors/unknowns.faa",
-        info = base_path + "/30_unknown_effectors/unknowns_info.tsv"
-    threads: thread_ultrasmall
-    shell:
-        '''
-        find '{base_path}/30_unknown_effectors' -maxdepth 2 -type f -wholename '*/*_unknown_proteins.faa' -print0 | xargs -0 cat >> {output.proteins}
-        echo "locus_id\tsample\tsequence\tlength\tevalue\tposition\tid\tcctyper" > {output.info}
-        find '{base_path}/30_unknown_effectors' -maxdepth 2 -type f -wholename '*/*_unknown_proteins_info.tsv' -print0 | xargs -0 cat >> {output.info}
-        '''
-
-rule concatenate_unknowns_locus_info:
-    '''
-    Aggregates the locus specific regarding unknown effectors info files
-    '''
-    input: aggregate_unknowns_locus_info
-    output:
-        info = base_path + "/30_unknown_effectors/unknowns_info_loci.tsv"
-    threads: thread_ultrasmall
-    shell:
-        '''
-        echo "locus_id\tsample\tno_of_unknowns\tunknown_proteins" > {output.info}
-        find '{base_path}/30_unknown_effectors' -maxdepth 2 -type f -wholename '*/*_locus_unknown_info.tsv' -print0 | xargs -0 cat >> {output.info}
-        '''
-
-rule cluster_unknowns:
-    '''
-    Makes clusters of the unknown proteins using CD-HIT.
-    Choose of word size:
-        -n 5 for thresholds 0.7 ~ 1.0
-        -n 4 for thresholds 0.6 ~ 0.7
-        -n 3 for thresholds 0.5 ~ 0.6
-        -n 2 for thresholds 0.4 ~ 0.5
-    '''
-    input: rules.concatenate_unknowns.output.proteins
-    output:
-        proteins = base_path + "/31_unknowns_cluster/unknowns_cluster.faa",
-        clusterinfo = base_path + "/31_unknowns_cluster/unknowns_cluster.faa.clstr",
-    conda: "envs/trees.yaml"
-    log:
-        out = base_path + "/31_unknowns_cluster/logs/unknowns_cluster.out",
-        err = base_path + "/31_unknowns_cluster/logs/unknowns_cluster.err"
-    params:
-        cluster_cutoff = 0.4
-    threads: thread_hogger
-    shell:
-        '''
-        cd-hit -i {input} -o {output.proteins} -c {params.cluster_cutoff} -n 2 -d 0 -M 16000 -T {threads}
-        '''
-
 
 rule concatenate_type_iii_info:
     '''
@@ -2238,100 +1780,6 @@ rule concatenate_ring_nucleases_analysis:
         awk '(NR == 1) || (FNR > 1)' {input} > {output}
         """
 
-rule blender_hmm:
-    '''
-    Temporary rule for searching for blender proteins only (name in progress)
-    '''
-    input:
-        proteins = rules.cATyper_hmm_search.output.contig_proteins
-    output:
-        temp_rows = base_path + "/BLENDER_hmm/{c}/{c}_blender_temp.tsv",
-        hmm_rows = base_path + "/BLENDER_hmm/{c}/{c}_blender_hmm.tsv"
-    conda: "envs/hmmer.yaml"
-    params:
-        rn_db = blender_hmm_db,
-        temp_hmm = base_path + "/BLENDER_hmm/{c}/{c}_blender.temp",
-        evalue = "1e-8"
-    log:
-        out = base_path + "/BLENDER_hmm/logs/{c}/{c}_blender.out",
-        err = base_path + "/BLENDER_hmm/logs/{c}/{c}_blender.err"
-    threads: thread_ultrasmall
-    shell:
-        '''
-        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.rn_db} {input.proteins} &> /dev/null
-        echo "Removing commented rows" >> {log.out}
-        grep -v "^#" {params.temp_hmm} > {output.temp_rows} ||:
-        echo "Writing header" >> {log.out}
-        echo -e 'target_name\taccession\ttlen\tquery_name\taccession\tqlen\tE-value_fullseq\tscore_fullseq\tbias_fullseq\t#_domain\tof_domain\tc-Evalue_domain\ti-Evalue_domain\tscore_domain\tbias_domain\t_hmm_from\thmm_to\t_ali_from\tali_to\tenv_from\tenv_to\tacc\tdescription' > {output.hmm_rows}
-        echo "Checking if hits were found" >> {log.out}
-        if [ -s {output.temp_rows} ]; then 
-            echo "Hits found for {wildcards.c}" >> {log.out}
-            cat {output.temp_rows} >> {output.hmm_rows}
-        else
-            echo "No hits found for {wildcards.c}" >> {log.out}
-            touch {output.hmm_rows}
-        fi
-        '''
-
-
-def aggregate_blender_analysis(wildcards):
-    checkpoint_output = checkpoints.type_iii_wildcarder.get(**wildcards).output[0]
-    cvals = glob_wildcards(os.path.join(checkpoint_output,"{c}/cas_operons.tsv")).c
-    return expand(base_path + "/BLENDER_analysis/{c}/{c}_blender_analysis_results.tsv", c=cvals)
-
-def aggregate_blender_hmm(wildcards):
-    checkpoint_output = checkpoints.type_iii_wildcarder.get(**wildcards).output[0]
-    cvals = glob_wildcards(os.path.join(checkpoint_output,"{c}/cas_operons.tsv")).c
-    return expand(base_path + "/BLENDER_hmm/{c}/{c}_blender_hmm.tsv", c=cvals)
-
-rule concatenate_blender_hmm:
-    input: aggregate_blender_hmm
-    output: base_path + "/BLENDER_hmm/blender_all_hmm.tsv"
-    threads: thread_ultrasmall
-    shell:
-        """
-        awk '(NR == 1) || (FNR > 1)' {input} > {output}
-        """
-
-rule blender_analysis:
-    '''
-    Generates locus-specific information on the presence of ring nucleases.
-    '''
-    input:
-        crispr_positive_samples = base_path + "/071_cctyper_loci/{c}/cas_operons.tsv",
-        contig_proteins = base_path + "/10_cATyper_hmm/{c}/{c}_contig_proteins.faa",
-        hmm_rows = rules.blender_hmm.output.hmm_rows,
-    output:
-        catyper = base_path + "/BLENDER_analysis/{c}/{c}_blender_analysis_results.tsv",
-        hmm_targets = base_path + "/BLENDER_analysis/{c}/{c}_blender_hmm_targets.tsv",
-        effector_to_protein = base_path + "/BLENDER_analysis/{c}/{c}_effector_to_protein.tsv",
-        protein_to_effector = base_path + "/BLENDER_analysis/{c}/{c}_protein_to_effector.tsv",
-        plottable_effector_positions = base_path + "/BLENDER_analysis/{c}/{c}_plottable_effector_positions.tsv",
-    params:
-        outdir = base_path + "/BLENDER_analysis/{c}",
-        host_genomes_folder = base_path + "/06_host_genomes",
-        hmm_msa_folder = "/home/vhoikkal/scratch/private/databases/custom_hmm/ring_nucleases/profiles/RN_blender"
-    conda: "envs/hmmer.yaml"
-    log:
-        out = base_path + "/BLENDER_analysis/logs/{c}.out",
-        err = base_path + "/BLENDER_analysis/logs/{c}.err",
-    threads: thread_ultrasmall
-    shell:
-        '''
-        echo "Running blender analysis" >> {log.out}
-        echo "Listing targets" >> {log.out}
-        echo "/home/vhoikkal/scratch/private/databases/custom_hmm/ring_nucleases/profiles/RN_blender/RN_blender.hmm" > {output.hmm_targets}
-        python scripts/catyper_prepper_10.py --locus {wildcards.c} --cas_operons_file {input.crispr_positive_samples} --output_folder {params.outdir} --host_genomes_folder {params.host_genomes_folder} --mode post_hmm --hmm_targets {output.hmm_targets} --hmm_rows {input.hmm_rows} --catyper_out {output.catyper} --catyper_type "ring_nucleases" --effector_plot_data {output.plottable_effector_positions} --ring_nuclease True 2> {log.err} 1> {log.out}
-        '''
-
-rule concatenate_blender_analysis:
-    input: aggregate_blender_analysis
-    output: base_path + "/BLENDER_analysis/blender_all_hmm.tsv"
-    threads: thread_ultrasmall
-    shell:
-        """
-        awk '(NR == 1) || (FNR > 1)' {input} > {output}
-        """
 
 rule concatenate_ring_nucleases_scores:
     '''
@@ -2373,117 +1821,12 @@ rule analyse_ring_nucleases_scores:
         touch {output.effector_scores_summary}
         '''
 
-# rule heatmap_known_validated_effectors:
-#     input:
-#         etp_validated = rules.concatenate_validated_new_effectors_scores.output.effector_to_protein_concatenated,
-#         etp_known = rules.concatenate_cATyper_analysis_effector_scores.output.effector_to_protein_concatenated
-#     output:
-#         effectors_combined = base_path + "/70_validated_and_known_effectors_heatmap/etp_combined.tsv",
-#         effector_scores_summary = base_path + "/70_validated_and_known_effectors_heatmap/effectors.tsv",
-#     params:
-#         outdir = base_path + "/70_validated_and_known_effectors_heatmap",
-#         dummyout = base_path + "/70_validated_and_known_effectors_heatmap/dummyout.tsv"
-#     threads: thread_ultrasmall
-#     conda: "envs/analysis.yaml"
-#     shell:
-#         '''
-#         cat {input.etp_validated} {input.etp_known} > {output.effectors_combined}
-#         python scripts/catyper_effector_scores.py --etp {output.effectors_combined} --output {params.dummyout} --output_summary {output.effector_scores_summary} --outdir {params.outdir}
-#         '''
-
-
-rule heatmap_ring_nucleases:
-    input:
-        ring_nuclease_etp = rules.concatenate_ring_nucleases_scores.output.effector_to_protein_concatenated
-    output:
-        rns_combined = base_path + "/72_ring_nucleases_heatmap/etrn_combined.tsv", # etrn = effector to ring nuclease
-        rn_scores_summary = base_path + "/72_ring_nucleases_heatmap/rns.tsv",
-    params:
-        outdir = base_path + "/72_ring_nucleases_heatmap",
-        dummyout = base_path + "/72_ring_nucleases_heatmap/dummyout.tsv"
-    threads: thread_small
-    conda: "envs/hmmer.yaml"
-    log:
-        out = base_path + "/72_ring_nucleases_heatmap/logs/heatmap.out",
-        err = base_path + "/72_ring_nucleases_heatmap/logs/heatmap.err"
-    shell:
-        '''
-        python scripts/catyper_effector_scores.py --etp {input.ring_nuclease_etp} --output {params.dummyout} --output_summary {output.rn_scores_summary} --outdir {params.outdir} 2> {log.err} 1> {log.out}
-        '''
-
-rule crn4_aligner:
-    '''
-    Deprecated as of 21.6.2024. Csx14 lumped with Csx1 and 15,16,20 kept separate.
-
-    Crn4 refers to Csx15, 16 and 20 (a, b, c). These are structurally almost identical proteins,
-    but sequence-wise quite diverged. Here we align them by aa sequence
-    and create tree in subsequent rule.
-
-    We concatenate the sequences of the three proteins and align them with muscle.
-
-    Crn1 is used as outgroup. Csx14 added for now too (21.5.2024)
-    '''
-    input: rules.concatenate_ring_nucleases_analysis.output #this is just a trigger to start rule
-    output: base_path + "/74_crn4_align/crn4_alignment.afa",
-    conda: "envs/trees.yaml"
-    log:
-        out = base_path + "/74_crn4_align/logs/crn4_align.out",
-        err = base_path + "/74_crn4_align/logs/crn4_align.err"
-    threads: thread_hogger
-    params:
-        concatenated_crn4_seqs = base_path + "/74_crn4_align/crn4_concatenated.faa",
-        base_folder = base_path + "/71_ring_nucleases_analysis",
-        csx14_renamed = base_path + "/74_crn4_align/csx14_renamed.faa",
-        csx14_orig = base_path + "/74_crn4_align/csx14_orig.faa",
-        csx15_renamed = base_path + "/74_crn4_align/csx15_renamed.faa",
-        csx15_orig = base_path + "/74_crn4_align/csx15_orig.faa",
-        csx16_renamed = base_path + "/74_crn4_align/csx16_renamed.faa",
-        csx16_orig = base_path + "/74_crn4_align/csx16_orig.faa",
-        csx20_renamed = base_path + "/74_crn4_align/csx20_renamed.faa",
-        csx20_orig = base_path + "/74_crn4_align/csx20_orig.faa",
-        crn1_renamed = base_path + "/74_crn4_align/crn1_renamed.faa",
-        crn1_orig = base_path + "/74_crn4_align/crn1_orig.faa"
-    shell:
-        '''
-        cat {params.base_folder}/*/csx20.faa > {params.csx20_orig}
-        cat {params.base_folder}/*/csx15.faa > {params.csx15_orig}
-        cat {params.base_folder}/*/csx16.faa > {params.csx16_orig}
-        cat {params.base_folder}/*/crn1.faa > {params.crn1_orig}
-
-        python scripts/crn4_header_renamer.py --input {params.csx20_orig} --output {params.csx20_renamed} --prefix "csx20"
-        python scripts/crn4_header_renamer.py --input {params.csx15_orig} --output {params.csx15_renamed} --prefix "csx15"
-        python scripts/crn4_header_renamer.py --input {params.csx16_orig} --output {params.csx16_renamed} --prefix "csx16"
-        python scripts/crn4_header_renamer.py --input {params.crn1_orig} --output {params.crn1_renamed} --prefix "crn1"
-
-        cat {params.csx15_renamed} {params.csx16_renamed} {params.csx20_renamed} {params.crn1_renamed} > {params.concatenated_crn4_seqs}
-        
-        muscle -super5 "{params.concatenated_crn4_seqs}" -output "{output}" -threads {threads} 2> {log.err} 1> {log.out}
-        '''
-
-rule crn4_tree:
-    '''
-    Deprecated (see rule crn4_aligner)
-    '''
-    input: rules.crn4_aligner.output
-    output:
-        tree1 = base_path + "/75_crn4_tree/crn4_tree1.txt",
-        tree2 = base_path + "/75_crn4_tree/crn4_tree2.txt",
-        tree3 = base_path + "/75_crn4_tree/crn4_tree3.txt",
-        tree4 = base_path + "/75_crn4_tree/crn4_tree4.txt"
-    conda: "envs/trees.yaml"
-    threads: thread_hogger
-    shell:
-        '''
-        FastTree -wag -gamma {input} > {output.tree1}
-        FastTree -wag -gamma {input} > {output.tree2}
-        FastTree -wag -gamma {input} > {output.tree3}
-        FastTree -wag -gamma {input} > {output.tree4}
-        '''
 
 rule ring_nucleases_fusions:
     '''
     Looks at the original ring nuclease hits and finds out if a protein has multiple credible ring nuclease annotations
     to indicate a fusion between two ring nucleases.
+    Deprecated rule now that we use a cutoff for annotating ring nucleases.
     '''
     input:
         hmm_rows = base_path + "/70_ring_nucleases/{c}/{c}_ring_nucleases_hmm.tsv",
@@ -2559,97 +1902,6 @@ rule ring_nuclease_cas10_fusions:
         cat {output.temp_rows} >> {output.hmm_rows}
         '''
 
-# rule new_ring_nucleases:
-#     '''
-#     This rule searches for potential ring nucleases by finding poorly annotated short genes within type III loci
-#     Takes as input a list of locus names (from rule mastercombiner) and performs characterisation of all unknown proteins in those loci.
-#     Characterisation involves:
-#         - HMM search against Pfam
-#         - HMM search against CARF/SAVED
-#     '''
-#     input:
-#         group4_list = rules.mastercombiner.output.group4_IDs,
-#         unknown_proteins = rules.concatenate_unknowns.output.proteins
-#     output:
-#         #group4_CARFSAVED = base_path + "/group4/group4.CARFSAVED.rawresults.tsv",
-#         group4_pfam = base_path + "/group4/group4.all.pfam.rawresults.tsv",
-#         clustered_unknowns = base_path + "/group4/group4_clustered_unknowns.faa",
-#         individual_fastas_created = base_path + "/group4/individual_fastas/fastas_created.done"
-#     params:
-#         outdir = base_path + "/group4",
-#         output_base = base_path + "/group4/group4",
-#         output_individual_fastas = base_path + "/group4/individual_fastas",
-#         pfams_temp = base_path + "/group4/group4.all.pfam.rawresults.txt.temp",
-#         tmhmm_model = TM_path + "/TMHMM2.0.model"
-#     log:
-#         out = base_path + "/group4/logs/group4_characteriser.out",
-#         err = base_path + "/group4/logs/group4_characteriser.err"
-#     conda:
-#         "envs/groupChar.yaml"
-#     threads: thread_small
-#     shell:
-#         '''
-#         python3 scripts/novel_ring_nucleases.py --input {input.group4_list} --unknown_proteins {input.unknown_proteins} --output_basename {params.output_base} --clustered_unknowns {output.clustered_unknowns} --individual_fastas_dir {params.output_individual_fastas} --tmhmm_model {params.tmhmm_model} --outputfolder {params.outdir} --pfam_db {pfam_db} --carfsaved_db {carfsaved_db}  2> {log.err} 1> {log.out}
-#         touch {output.individual_fastas_created}
-#         echo -e "{group4_pfam_headers}" > {output.group4_pfam}
-#         grep -v "#" {params.pfams_temp} >> {output.group4_pfam}
-#         '''
-
-
-rule validated_effectors_cas10_fusions:
-    '''
-    Runs Cas10 sequences as query against the validated effectors database to detect any fusions
-    '''
-    input:
-        cas10 = rules.Cas10_cluster.output.proteins
-    output:
-        temp_rows = base_path + "/101_validated_effectors_cas10/validated_effectors_cas10_temp.tsv",
-        hmm_rows = base_path + "/101_validated_effectors_cas10/validated_effectors_cas10_hmm.tsv"
-    conda: "envs/hmmer.yaml"
-    params:
-        validated_effectors_hmm_db = validated_effectors_hmm_db,
-        temp_hmm = base_path + "/101_validated_effectors_cas10/ring_nucleases_cas10.temp",
-        evalue = "1e-10"
-    log:
-        out = base_path + "/101_validated_effectors_cas10/logs/validated_effectors_cas10.out",
-        err = base_path + "/101_validated_effectors_cas10/logs/validated_effectors_cas10.err"
-    threads: thread_hogger
-    shell:
-        '''        
-        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.validated_effectors_hmm_db} {input.cas10}
-        echo "Removing commented rows" >> {log.out}
-        grep -v "^#" {params.temp_hmm} > {output.temp_rows} ||:
-        echo -e 'target_name\taccession\ttlen\tquery_name\taccession\tqlen\tE-value_fullseq\tscore_fullseq\tbias_fullseq\t#_domain\tof_domain\tc-Evalue_domain\ti-Evalue_domain\tscore_domain\tbias_domain\t_hmm_from\thmm_to\t_ali_from\tali_to\tenv_from\tenv_to\tacc\tdescription' > {output.hmm_rows}
-        cat {output.temp_rows} >> {output.hmm_rows}
-        '''
-
-rule known_effectors_cas10_fusions:
-    '''
-    Runs Cas10 sequences as query against the known effectors database to detect any fusions
-    '''
-    input:
-        cas10 = rules.Cas10_cluster.output.proteins
-    output:
-        temp_rows = base_path + "/101_known_effectors_cas10/known_effectors_cas10_temp.tsv",
-        hmm_rows = base_path + "/101_known_effectors_cas10/known_effectors_cas10_hmm.tsv"
-    conda: "envs/hmmer.yaml"
-    params:
-        known_effectors_db = hmm_database_folder + "/" + hmm_database_file,
-        temp_hmm = base_path + "/101_known_effectors_cas10/ring_nucleases_cas10.temp",
-        evalue = "1e-10"
-    log:
-        out = base_path + "/101_known_effectors_cas10/logs/known_effectors_cas10.out",
-        err = base_path + "/101_known_effectors_cas10/logs/known_effectors_cas10.err"
-    threads: thread_hogger
-    shell:
-        '''        
-        hmmscan --domtblout {params.temp_hmm} --cpu {threads} -E {params.evalue} {params.known_effectors_db} {input.cas10}
-        echo "Removing commented rows" >> {log.out}
-        grep -v "^#" {params.temp_hmm} > {output.temp_rows} ||:
-        echo -e 'target_name\taccession\ttlen\tquery_name\taccession\tqlen\tE-value_fullseq\tscore_fullseq\tbias_fullseq\t#_domain\tof_domain\tc-Evalue_domain\ti-Evalue_domain\tscore_domain\tbias_domain\t_hmm_from\thmm_to\t_ali_from\tali_to\tenv_from\tenv_to\tacc\tdescription' > {output.hmm_rows}
-        cat {output.temp_rows} >> {output.hmm_rows}
-        '''
-
 rule mastercombiner:
     '''
     Added 4.9.2023 to incorporate merging and data handling previously done in R in here
@@ -2658,7 +1910,6 @@ rule mastercombiner:
         concat_taxInfo = rules.concat_taxInfo.output,
         catyper = rules.concatenate_cATyper_analysis.output,
         type_iii_info = rules.combine_GGDD_HMM_to_mastertable.output.final_info_table,
-        #clustered_unknowns_info = rules.concatenate_unknowns_locus_info.output.info,
         temperature_data = temperature_data,
         validated_new_effectors = rules.concatenate_validated_new_effectors_analysis.output,
         ring_fusions = rules.ring_fusions.output.ring_fusions,
@@ -2672,7 +1923,6 @@ rule mastercombiner:
         mastertable = pd.read_csv(str(input.type_iii_info), sep = "\t")
         taxInfo = pd.read_csv(str(input.concat_taxInfo), sep = "\t")
         catyper = pd.read_csv(str(input.catyper), sep = "\t")
-        #clustered_unknowns_info = pd.read_csv(str(input.clustered_unknowns_info), sep = "\t")
         validated_new_effectors_df = pd.read_csv(str(input.validated_new_effectors), sep = "\t")
         ring_nucleases_df = pd.read_csv(str(input.ring_nucleases), sep = "\t")
 
@@ -2709,7 +1959,6 @@ rule mastercombiner:
         #### MERGE ####
         mastertable = pd.merge(mastertable, taxInfo, on = "Sample", how = "left")
         mastertable = pd.merge(mastertable, catyper, left_on = "Locus", right_on = "locus", how = "left")
-        #mastertable = pd.merge(mastertable, clustered_unknowns_info, left_on = "Locus", right_on = "locus_id", how = "left")
         mastertable = pd.merge(mastertable, validated_new_effectors_df, left_on = "Locus", right_on = "locus", how = "left", suffixes = ("", "new_eff"))
         mastertable = pd.merge(mastertable, ring_nucleases_df, left_on = "Locus", right_on = "locus", how = "left", suffixes = ("", "rn"))
         mastertable = pd.merge(mastertable, ring_fusions, left_on = "Locus", right_on = "locus", how = "left", suffixes = ("", "rn_fusions"))
@@ -2827,15 +2076,14 @@ rule mastercombiner:
         #subset the mastertable to include samples where (GGDD_hmm_boolean is True or GGDE_hmm_boolean is True) AND HD_hmm_boolean is False
         mastertable["Cas10_HD_coord"] = pd.to_numeric(mastertable["Cas10_HD_coord"], errors='coerce')
         mastertable_group4 = mastertable[
-            ((mastertable["GGDD_hmm_boolean"] == True) | (mastertable["GGDE_hmm_boolean"] == True)) #& 
-            #(mastertable["HD_hmm_boolean"] == False) & 
-            #((mastertable["Cas10_HD_coord"] > 100) | (mastertable["Cas10_HD"] == False)) & 
-            #(mastertable["unknown_proteins"] == True)
+            ((mastertable["GGDD_hmm_boolean"] == True) | (mastertable["GGDE_hmm_boolean"] == True))
         ]
         mastertable_group4["Locus"].to_csv(str(output.group4_IDs), sep = "\t", index = False)
 
         #some loci are wrongly subtyped. Use this dictionary to manually correct them. Key shows locus, value shows corrected subtype
-        subtype_corrections = { #NOTE these may change from run to run as crispr locus numbers are arbitrary and stochastic. Any rerun of CCTyper will null these corrections.
+        subtype_corrections = {
+            # NOTE these may change from run to run as crispr locus numbers are arbitrary and stochastic.
+            # Any rerun of CCTyper will null these corrections and they need to be rechecked
             # "GCA_003201765.2_3": "III-D",
             # "GCF_003201765.2_2": "III-D",
             # "GCA_022845955.1_1": "III-D",
@@ -3085,9 +2333,7 @@ rule casR_clustering:
         '''
 
 #### Phage genomes ####
-millard_fa = "/mnt/shared/scratch/vhoikkal/private/databases/millard_phages/4May2024_genomes.fa"
-millard_proteins = "/mnt/shared/scratch/vhoikkal/private/databases/millard_phages/4May2024_vConTACT2_proteins.faa"
-millard_metadata = "/mnt/shared/scratch/vhoikkal/private/databases/millard_phages/4May2024_data.tsv"
+
 
 def aggregate_millard_phage_RN_analysis(wildcards):
     '''
@@ -3286,182 +2532,6 @@ def aggregate_phage_cas10(wildcards):
     cvals = glob_wildcards(os.path.join(checkpoint_output,"{phage}/done.txt")).phage
     return expand(base_path + "/P4_cas10hmm/{phage}/{phage}_Cas10_hmm.tsv", phage=cvals)
 
-rule phage_cas10_concatenate:
-    input: aggregate_phage_cas10
-    output: base_path + "/P4_cas10hmm/phages_Cas10_hmm.tsv"
-    threads: thread_ultrasmall
-    log:
-        out = base_path + "/P4_cas10hmm/logs/phages_Cas10_hmm.out",
-        err = base_path + "/P4_cas10hmm/logs/phages_Cas10_hmm.err"
-    params:
-        temp_file = base_path + "/P4_cas10hmm/phages_Cas10_hmm.temp"
-    shell:
-        """
-        # Get the header from the first file
-        header=$(head -n 1 {input.files[0]})
-        
-        # Concatenate files without header
-        tail -q -n +2 {input.files} > {params.temp_file}
-
-        # Add header to the concatenated file
-        echo "$header" > {output}
-
-        # Concatenate the rest of the files
-        cat {params.temp_file} >> {output}
-
-        # Remove the temporary file
-        rm {params.temp_file}
-        """
-
-#finish writing analysis if any cas10s are found
-# rule phage_cas10_analysis:
-#     '''
-#     Takes the hmm hits from rule phage_cas10 and creates simplified tables similar to
-#     ring nuclease rules before
-#     '''
-#     input:
-#         hmm_rows = rules.phage_cas10.output.hmm_rows,
-#         proteins = base_path + "/P1_genomes/{phage}/{phage}_proteins.faa"
-#     output:
-#         catyper = base_path + "/P5_cas10_analysis/{phage}/{phage}_cATyper_results.tsv",
-#         hmm_targets = base_path + "/P5_cas10_analysis/{phage}/{phage}_Cas10_hmm_targets.tsv",
-#         effector_to_protein = base_path + "/P5_cas10_analysis/{phage}/{phage}_effector_to_protein.tsv",
-#         protein_to_effector = base_path + "/P5_cas10_analysis/{phage}/{phage}_protein_to_effector.tsv",
-#         plottable_effector_positions = base_path + "/P5_cas10_analysis/{phage}/{phage}_plottable_effector_positions.tsv",
-#     params:
-#         outdir = base_path + "/P5_cas10_analysis/{phage}",
-#         hmm_msa_folder = cas10_folder + "/profiles"
-#     conda: "envs/hmmer.yaml"
-#     threads: thread_ultrasmall
-#     log:
-#         out = base_path + "/P5_cas10_analysis/{phage}/logs/Cas10_analysis.out",
-#         err = base_path + "/P5_cas10_analysis/{phage}/logs/Cas10_analysis.err"
-#     shell:
-#         '''
-#         echo "Running Cas10 analysis for phages" >> {log.out}
-#         echo "Listing targets" >> {log.out}
-#         ls {params.hmm_msa_folder}/*/*.hmm > {output.hmm_targets}
-#         python scripts/phage_RN_analyzer.py --sample {wildcards.phage} --output_folder {params.outdir} --proteins_fasta {input.proteins} --hmm_targets {output.hmm_targets} --hmm_rows {input.hmm_rows} --catyper_out {output.catyper} --catyper_type "Cas10" --effector_plot_data {output.plottable_effector_positions} --ring_nuclease False 2> {log.err} 1> {log.out}
-#         '''
-
-
-rule spacers:
-    input:
-        done = rules.CRISPRCasTyper.output,
-        renaming_done = rules.CRISPRCasTyper_rename.output
-    params:
-        fastafolder = base_path + "/07_cctyper/{j}/spacers",
-        fastafile = base_path + "/07_cctyper/{j}/spacers/",
-        crisprresultfolder = base_path + "/07_cctyper/{j}/"
-    output:
-        base_path + "/03_spacers/all/{j}_spacers.csv"
-    run:
-        from Bio import SeqIO
-        import os.path
-        from os import path
-        import csv
-
-        crispr_loci = [] #create a crispr_loci list. This is just a list of cctyper loci.
-        crispr_results = str(params.crisprresultfolder + "crisprs_all.tab")
-        print("Opening " + crispr_results)
-        if os.path.isfile(crispr_results):
-            with open(crispr_results) as csv_file:
-                csv_reader = csv.reader(csv_file, delimiter='\t')
-                line_count = 0
-                for row in csv_reader:
-                    if line_count == 0:
-                        #print(f'Column names are {", ".join(row)}')
-                        line_count += 1
-                    else:
-                        #print(", ".join(row))
-                        #print(row[11])
-                        if row[11] == "True":
-                            #print(row[1] + " trusted")
-                            crispr_loci.append(row[1])
-                        line_count += 1
-                #print(f'Processed {line_count} lines.')
-                #print("Trusted loci: " +  str(crispr_loci))
-        else:
-            print("No CRISPR-Cas loci found")
-
-        fastafolder_object = Path(params.fastafolder) #store path to spacer folder as object
-        shell("touch '{base_path}/03_spacers/all/{wildcards.j}_spacers.csv'") #create spacer .csv file for every sample
-        if len(crispr_loci) > 0: #check if there are any loci in the trusted list
-            print("------------- Spacers found in  " + str(wildcards.j) + "!")
-            spacers_dict = {}
-            for filename in os.listdir(fastafolder_object): #iterate through all fastas
-                filename_reduced = re.search('(.*)\.[^.]+$', filename).group(1)
-                #print("Reduced locus name: " + str(filename_reduced))
-                #print(crispr_loci)
-                #print(filename)
-                if filename_reduced in crispr_loci:
-                    #print("Match for file " + str(filename) + " in trusted loci")
-                    for seq_record in SeqIO.parse(str(fastafolder_object) + '/' + filename, 'fasta'): #iterate through all entries in fasta
-                        spacers_dict[seq_record.id] = seq_record.seq #add entry as dictionary entry
-            with open(str(output), 'w') as f:
-                for key in spacers_dict.keys():
-                    f.write('%s,%s\n'%(key + "@" + str(wildcards.j),spacers_dict[key]))
-        else:
-            print("No spacers found in " + str(wildcards.j))
-
-def aggregate_spacers(wildcards):
-    '''
-    Returns all spacers from all samples
-    '''
-    checkpoint_output = checkpoints.expand_host_genomelist_to_wildcards_postcas10.get(**wildcards).output[0]
-    print(checkpoint_output)
-    ivals = glob_wildcards(os.path.join(checkpoint_output,"{j}.txt")).j
-    print("Aggregating spacers from trusted locus observations")
-    return expand(base_path + "/03_spacers/all/{j}_spacers.csv", j=ivals)
-
-rule combined_spacers:
-    '''
-    This rule aggregates all spacer.csv files into one big .csv collection. The expand function is used for
-    the concatenation, and it uses the list returned by the aggregate_IDs function.
-    '''
-    input: aggregate_spacers
-    output: base_path + "/03_spacers/combined_spacers.csv"
-    shell:
-        """
-        cat {input} > {output}
-        """
-
-rule spacers_blast_convert_spacers:
-    """
-    This converts the concatenated .csv into fasta format for blasting
-    """
-    input:
-        rules.combined_spacers.output #the concatenated csv file
-    output:
-        fasta = base_path + "/03_spacers/combined_spacers.fasta",
-        formatted_spacers = base_path + "/03_spacers/formatted_spacers.csv"
-    threads: thread_ultrasmall
-    shell:
-        """
-        sed 's/^/>/' {input} > {output.formatted_spacers}
-        tr "," "\n" < {output.formatted_spacers} > {output.fasta}
-        """
-
-rule spacers_blast_runblast:
-    '''
-    Blasts spacers against the phage database.
-    Also adds headers to blast result file.
-
-    Remember to make a blast db of the phage genomes first.
-    '''
-    input:
-        fasta = rules.spacers_blast_convert_spacers.output.fasta #the concatenated csv file
-    output:
-        blast = base_path + "/P5_spacer_to_phage_blast/blast.out",
-    params:
-        blast_db = millard_fa,
-    conda: "envs/blast.yaml"
-    threads: thread_hogger
-    shell:
-        '''
-        blastn -num_threads {threads} -db {params.blast_db} -task blastn-short -query {input.fasta} -outfmt "6 qseqid qlen sseqid  stitle staxids saccver sstart send evalue length pident mismatch gapopen gaps sstrand" -evalue 0.01 > {output.blast}
-        echo -e 'Query_id\tQuery_length\tSubject_id\tSubject_sci_title\tSubject_taxID\tSubject_accession_ID_version\tSubject_start\tSubject_end\tEvalue\tLength\tPercentage_identical\tMismatches\tOpen_gaps\tGaps\tSubject_strand' | cat - {output.blast} > blast.cat && mv blast.cat {output.blast}      
-        '''
 
 def aggregate_allHosts(wildcards):
     '''
@@ -3470,249 +2540,6 @@ def aggregate_allHosts(wildcards):
     checkpoint_output = checkpoints.expand_host_genomelist_to_wildcards_postcas10.get(**wildcards).output[0]
     ivals = glob_wildcards(os.path.join(checkpoint_output,"{j}.txt")).j
     return expand(base_path + "/03_postfiltering_genome_wildcards/{j}.txt", j=ivals)
-
-rule hostTable:
-    '''
-    Prints all bacterial genome names to file without extension. Used in spacer mapping analysis.
-    This table is after filtering by cas10 ("03_postfiltering_genome_wildcards"), so all genomes are type III,
-    but may or may not have spacer matches against phages.
-    '''
-    input: aggregate_allHosts
-    output: base_path + "/allHosts.tsv"
-    run:
-        hostlist = str(input).split(" ")
-        basenameList = []
-        for h in hostlist:
-            basename = Path(h).stem
-            basenameList.append(basename)
-        #print(input)
-        with open(str(output), mode='wt', encoding='utf-8') as hostfile:
-            hostfile.write('\n'.join(basenameList))
-
-
-rule spacer_hits_analyzer:
-    '''
-    Using data from hosts, spacer, protospacer, and phage databases, this script
-    creates merged tables showing phage/host interactions and network tables
-    for visualisation with Gephi.
-    '''
-    input:
-        mastertable = rules.mastercombiner.output.final_info_table, #ok
-        phage_data = millard_metadata, #ok
-        allHosts = rules.hostTable.output,
-        spacer_blast_hits = rules.spacers_blast_runblast.output.blast,
-        phage_rns = rules.concatenate_millard_phage_RN_analysis.output,
-    output:
-        spacer_links = base_path + "/P6_spacer_analysis/spacer_protospacer_hits.csv",
-        gephi_nodes = base_path + "/P6_spacer_analysis/spacer_nodes.csv",
-        gephi_edges = base_path + "/P6_spacer_analysis/spacer_edges.csv",
-        ca3_phages_by_host = base_path + "/P6_spacer_analysis/ca3_phagecounts.tsv", #all phages that infect ca3 hosts
-        non_ca3_phages_by_host = base_path + "/P6_spacer_analysis/ca3_phagecounts_false.tsv" #all phages that do not infect ca3 hosts
-    conda:
-        "envs/merge.yaml"
-    params:
-        outfolder = base_path + "/P6_spacer_analysis"
-    shell:
-        """
-        python scripts/spacer_hit_analyzer.py --spacer_blast_hits {input.spacer_blast_hits} --out_nodes {output.gephi_nodes} --out_edges {output.gephi_edges} --out_merged_all {output.spacer_links} --phage_data {input.phage_data} --host_mastertable {input.mastertable} --all_hosts {input.allHosts} --base_path {base_path} --outfolder {params.outfolder} --phage_rns {input.phage_rns}
-        """
-
-
-rule separate_coa_proteomes_phages:
-    '''
-    This rule is the first step in doing enrichment analysis with the goal
-    of finding phage proteins that are enriched in phages that are targeted
-    by cA3-utilising hosts.
-
-    The division into cOA-specific phages is done already in the rule spacer_hits_analyzer.
-    Here, we take those lists, find phages that are uniquely targeted by
-    cA3-hosts, and create a fasta file of their proteins.
-
-    Clustering is done in the next rule.
-    '''
-    input:
-        ca3_phages = rules.spacer_hits_analyzer.output.ca3_phages_by_host, #list of phages that infect ca3-hosts
-        non_ca3_phages = rules.spacer_hits_analyzer.output.non_ca3_phages_by_host, #list of phages that infect non-ca3 hosts
-        all_phage_proteins = millard_proteins
-    output:
-        ca3_proteins = base_path + "/P7_enrichment_analysis/ca3_phages_proteins.faa",
-        non_ca3_proteins = base_path + "/P7_enrichment_analysis/non_ca3_phages_proteins.faa"
-    threads: thread_ultrasmall
-    shell:
-        '''
-        python scripts/separate_coa_proteomes_phages.py --ca3_phages {input.ca3_phages} --non_ca3_phages {input.non-ca3_phages} --all_phage_proteins {input.all_phage_proteins} --out_ca3_proteins {output.ca3_proteins} --out_non_ca3_proteins {output.non_ca3_proteins}
-        '''
-
-
-    #python scripts/separate_coa_proteomes_phages.py --ca3_phages spacertest/ca3_phagecounts.tsv --non_ca3_phages spacertest/ca3_phagecounts_false.tsv --all_phage_proteins /mnt/shared/scratch/vhoikkal/private/databases/millard_phages/4May2024_vConTACT2_proteins.faa --out_ca3_proteins P7_enrichment_analysis/ca3_phages_proteins.faa --out_non_ca3_proteins P7_enrichment_analysis/non_ca3_phages_proteins.faa
-
-
-# These clustering rules that work for ca3 and non-ca3 are probably not needed. Will be using the cluster_all_phage_proteins instead.
-
-# rule cluster_ca3_phagge_proteomes:
-#     '''
-#     This rule creates clusters of ca3 phage proteomes
-#     '''
-#     input:
-#         ca3_proteins = rules.separate_coa_proteomes_phages.output.ca3_proteins,
-#         non_ca3_proteins = rules.separate_coa_proteomes_phages.output.non_ca3_proteins
-#     output:
-#         ca3_clusters = base_path + "/P7_enrichment_analysis/ca3_phages_clusters.tsv",
-#     threads: thread_hogger
-#     params:
-#         cluster_cutoff = 0.4,
-#         word_length = 2
-#     shell:
-#         '''
-#         cd-hit -i "{input.ca3_proteins}" -o "{output.ca3_clusters}" -c {params.cluster_cutoff} -n {params.word_length} -T {threads} 2> {log.err} 1> {log.out}
-#         '''
-
-#         cd-hit -i "P7_enrichment_analysis/ca3_phages_proteins.faa" -o "P7_enrichment_analysis/ca3_phages_clusters.tsv" -c 0.4 -n 2 -T 40 2> {log.err} 1> {log.out}
-
-
-# rule cluster_nonca3_phage_proteomes:
-#     '''
-#     This rule creates clusters of non-ca3 phage proteomes
-#     '''
-#     input:
-#         ca3_protein_cluster_done = rules.cluster_ca3_phagge_proteomes.output.ca3_clusters,
-#         non_ca3_proteins = rules.separate_coa_proteomes_phages.output.non_ca3_proteins
-#     output:
-#         non_ca3_clusters = base_path + "/P7_enrichment_analysis/non_ca3_phages_clusters.tsv"
-#     threads: thread_hogger
-#     shell:
-#         '''
-#         cd-hit -i "{input.non_ca3_proteins}" -o "{output.ca3_clusters}" -c {params.cluster_cutoff} -n {params.word_length} -T {threads} 2> {log.err} 1> {log.out}
-#         '''
-
-rule cluster_all_phage_proteins:
-    '''
-    This rule creates clusters of all phage proteins
-    '''
-    input:
-        all_phage_proteins = millard_proteins
-    output:
-        all_phage_clusters_clstr = base_path + "/P7_enrichment_analysis/all_protein_cluster.faa.clstr",
-        all_phage_clusters_faa = base_path + "/P7_enrichment_analysis/all_protein_cluster.faa"
-    threads: thread_hogger
-    params:
-        cluster_cutoff = 0.4,
-        word_length = 2,
-        max_length_diff = 0.75
-    shell:
-        '''
-        cd-hit -i "{input.all_phage_proteins}" -o "{output.all_phage_clusters_faa}" -c {params.cluster_cutoff} -n {params.word_length} -s {params.max_length_diff} -c 999 -T {threads} 2> {log.err} 1> {log.out}
-        '''
-
-rule create_phage_protein_sqlite_db:
-    '''
-    Creates an SQLite database from the phage protein clusters
-    '''
-    input:
-        all_proteins_cluster = rules.cluster_all_phage_proteins.output.all_phage_clusters_clstr,
-        all_proteins_cluster_fasta = rules.cluster_all_phage_proteins.output.all_phage_clusters_faa
-    output:
-        sqlite = base_path + "/P7_enrichment_analysis/phage_protein_cluster.db"
-    shell:
-        '''
-        python scripts/sqlite_db_create.py --all_proteins_cluster {input.all_proteins_cluster} --all_proteins_cluster_fasta {input.all_proteins_cluster_fasta} --out {output.sqlite}
-        '''
-
-
-rule calculate_ca3_hits_for_phage_clusters:
-    '''
-    This rule calculates the number of ca3 or non ca3 phages associated with each phage protein cluster
-    '''
-    input:
-        all_proteins_sqlite = rules.create_phage_protein_sqlite_db.output.sqlite,
-        ca3_proteins = rules.separate_coa_proteomes_phages.output.ca3_proteins, 
-        non_ca3_proteins = rules.separate_coa_proteomes_phages.output.non_ca3_proteins
-    output: base_path + "/P7_enrichment_analysis/done.done"
-    shell:
-        '''
-        python scripts/assign_cluster_ca3_hits.py --sqlite {input.all_proteins_sqlite} --ca3_proteins {input.ca3_proteins} --non_ca3_proteins {input.non_ca3_proteins}
-        touch {output}
-        '''
-
-rule enrichment_analysis_ca3:
-    '''
-    This rule performs enrichment analysis on the phage proteins based on ca3-infecting phage "hits".
-    '''
-    input:
-        all_proteins_sqlite = rules.create_phage_protein_sqlite_db.output.sqlite,
-        assigning_done = rules.calculate_ca3_hits_for_phage_clusters.output
-    output:
-        enrichment_results = base_path + "/P7_enrichment_analysis/enrichment_results.tsv"
-    shell:
-        '''
-        python scripts/enrichment_analysis.py --sqlite {input.all_proteins_sqlite} --out {output.enrichment_results}
-        '''
-
-rule DBSCANSWA:
-    '''
-    This rule searches all bacterial genomes for prophages
-    using DBSCAN-SWA.
-
-    DBSCAN-SWA is installed separately from the Conda environment. Instructions:
-    1. Cloned by git clone https://github.com/HIT-ImmunologyLab/DBSCAN-SWA
-    2. export PATH=$PATH:/home/vhoikkal/scratch/private/programs/DBSCAN-SWA/bin (add to bashrc)
-    3. Set permissions:
-        chmod u+x -R /path-to-cloned-program/DBSCAN-SWA/bin
-        chmod u+x -R /path-to-cloned-program/DBSCAN-SWA/software
-    4. Add dependencies to conda env here in snakemake for Blast+, Diamond, Prokka, Numpy, 
-    5. Run using python bin/dbscan-swa.py
-    '''
-    input:
-        genome = base_path + "/06_host_genomes/{j}/{j}_genome.fna"
-    output:
-        proteins = base_path + "/PP1_dbscan_swa/{j}/{j}_DBSCAN-SWA_prophage.faa", #	all predicted prophage protein sequences in FASTA format
-        nt = base_path + "/PP1_dbscan_swa/{j}/{j}_DBSCAN-SWA_prophage.fna", #all predicted prophage Nucleotide sequences in FASTA format
-        summary = base_path + "/PP1_dbscan_swa/{j}/{j}_DBSCAN-SWA_prophage_summary.txt" #tsv file
-    params:
-        outfolder = base_path + "/PP1_dbscan_swa/{j}",
-        evalue = "1e-7", #default 1e-7
-        min_protein_num = "6", #default 6
-        protein_number = "10" #default 10
-    conda: "envs/dbscan_swa.yaml"
-    threads: thread_ultrasmall
-    log:
-        out = base_path + "/PP1_dbscan_swa/{j}/logs/dbscan_swa.out",
-        err = base_path + "/PP1_dbscan_swa/{j}/logs/dbscan_swa.err"
-    shell:
-        '''
-        dbscan-swa.py --input {input.genome} --output {params.outfolder} --prefix {wildcards.j} --evalue {params.evalue} --min_protein_num {params.min_protein_num}
-        '''
-
-def aggregate_dbscanswa(wildcards):
-    '''
-    Returns all prophage analysis summaries from all samples
-    '''
-    checkpoint_output = checkpoints.expand_host_genomelist_to_wildcards_postcas10.get(**wildcards).output[0]
-    ivals = glob_wildcards(os.path.join(checkpoint_output,"{j}.txt")).j
-    return expand(base_path + "/PP1_dbscan_swa/{j}/{j}_DBSCAN-SWA_prophage_summary.txt", j=ivals)
-
-rule concatenate_dbscanswa:
-    input: aggregate_dbscanswa
-    output: base_path + "/PP1_dbscan_swa/all_prophages.tsv"
-    threads: thread_ultrasmall
-    log:
-        out = base_path + "/PP1_dbscan_swa/logs/all_prophages.out",
-        err = base_path + "/PP1_dbscan_swa/logs/all_prophages.err"
-    params:
-        temp_file = base_path + "/PP1_dbscan_swa/all_prophages.temp"
-    shell:
-        """
-        # Get the header from the first file
-        header=$(head -n 1 {input.files[0]})
-
-        # Write the header to the output file
-        echo "$header" > {output}
-
-        # Concatenate files without header and append to the output file
-        for file in {input.files}; do
-            tail -n +2 "$file" >> {output}
-        done
-        """
 
 rule phigaro:
     '''
@@ -4032,20 +2859,13 @@ rule final:
         concat_taxInfo = rules.concat_taxInfo.output,
         catyper_hmm = rules.concatenate_cATyper_hmm.output,
         catyper_analysis = rules.concatenate_cATyper_analysis.output,
-        #tree_CorA = rules.CorA_tree.output,
-        #tree_CorA_unclustered = rules.CorA_tree_unclustered.output,
-        #clustered_unknowns = rules.cluster_unknowns.output.proteins, #each row is an unknown protein
-        #clustered_unknowns_info = rules.concatenate_unknowns_locus_info.output.info, #contains locus-specific info on unknowns
         cas10_HD_faa = rules.Cas10_HD_hmm_maker.output.faa,
         cas10_hd_hmm = rules.Cas10_HD_hmmer.output,
         cas10_HD_hmm_merged = rules.merge_HD_hmm_with_info.output.merged_table,
         cas10_GGDD_faa = rules.Cas10_GGDD_hmm_maker.output.faa,
         cas10_GGDD_hmm = rules.Cas10_GGDD_hmmer.output,
         cas10_GGDD_hmm_merged = rules.merge_GGDD_hmm_with_info.output.merged_table,
-        #groupCharacteriser = rules.groupCharacteriser.output.group4_pfam,
         aggregate_crispr_locus_proteins = rules.aggregate_crispr_locus_proteins.output,
-        #concatenated_blast_results = rules.concatenate_group4_commonness.output,
-        #analyseGroup4Hits = rules.analyseGroup4Hits.output.results_txt,
         effector_commonness = rules.effector_commonness.output.effector_commonness_tsv,
         effector_scores_summary = rules.analyse_cATyper_effector_scores.output.effector_scores_summary,
         validated_effectors_scores_summary = rules.analyse_validated_new_effectors_scores.output.effector_scores_summary,
@@ -4053,50 +2873,23 @@ rule final:
         concatenate_cATyper_hmm_hhsuite = rules.concatenate_cATyper_hmm_hhsuite.output,
         parse_hhsuite = rules.concatenate_cATyper_hmm_hhsuite.output,
         parse_hhsuite_cogs = rules.concatenate_cATyper_hmm_hhsuite_cogs.output,
-        #group4_pdb = rules.parse_hhsuite_group4_pdb.output,
-        #group4_cog = rules.parse_hhsuite_group4_cog.output,
         concatenate_validated_new_effectors_analysis = rules.concatenate_validated_new_effectors_analysis.output,
         heatmap_known_validated_effectors = rules.heatmap_known_validated_effectors.output.effector_scores_summary,
         node_graph = rules.node_graph.output.edges,
         node_graph_rn = rules.node_graph_RNs.output.edges,
         concatenate_locus_viz = rules.concatenate_locus_viz.output,
-        #excel = rules.create_excel_file.output.excel_file,
         html = rules.create_html_file.output.html_file,
-        #R_HD = rules.R_HD.output.HD_histogram,
         casR_cluster = rules.casR_clustering.output.clustered_CasR,
-        #heatmap_ring_nucleases = rules.heatmap_ring_nucleases.output.rn_scores_summary,
         ring_fusions = rules.ring_fusions.output.ring_fusions,
         ring_fusions_cas10 = rules.ring_nuclease_cas10_fusions.output.hmm_rows,
-        validated_effectors_cas10_fusions = rules.validated_effectors_cas10_fusions.output.hmm_rows,
-        known_effectors_cas10_fusions = rules.known_effectors_cas10_fusions.output.hmm_rows,
         ring_nucleases_fusions = rules.concatenate_ring_nuclease_fusions.output,
-        #cOA_RN_explorer = rules.cOA_RN_explorer.output.ca3_loci,
-        #cA3_small_unk_proteins_info = rules.cOA_small_unk_proteins.output.cA3_small_unk_proteins_info,
-        #fetch_small_unk_targets_ncbi = rules.fetch_small_unk_targets_ncbi.output.all_proteins,
-        #clustered_small_unknowns = rules.cluster_small_unk_proteins.output.clustered_proteins,
-        #small_unk_proteins_clusters_hmmer = rules.small_unk_proteins_clusters_hmmer.output.raw_table,
-        #tree_small_unk_protein_cluster_representatives = rules.tree_small_unk_protein_cluster_representatives.output,
-        #webflags_cluster_small_unk_proteins = rules.webflags_cluster_small_unk_proteins.output.done,
-        #tree_small_unk_proteins_all = rules.tree_small_unk_proteins_all.output,
-        #concatenate_wildcarded_webflags = rules.concatenate_wildcarded_webflags.output,
-        crn4_tree = rules.crn4_tree.output.tree1,
-        #phages_merge_hmm_and_metadata = rules.phages_merge_hmm_and_metadata.output
         concatenate_millard_phage_RN_analysis = rules.concatenate_millard_phage_RN_analysis.output,
-        #spacers_blast_convert_spacers = rules.spacers_blast_convert_spacers.output.fasta,
-        #spacers_blast = rules.spacers_blast_runblast.output.blast,
-        #phage_cas10_concatenate = rules.phage_cas10_concatenate.output,
-        hostTable = rules.hostTable.output,
-        #spacer_links = rules.spacer_hits_analyzer.output.spacer_links,
-        #dbscan_swa = rules.concatenate_dbscanswa.output,
         concatenate_phigaro = rules.concatenate_phigaro.output,
-        #cluster_all_phage_proteins = rules.cluster_all_phage_proteins.output.all_phage_clusters_clstr,
-        #concatenate_all_proteins_against_RN_diamond = rules.concatenate_all_proteins_against_RN_diamond.output,
-        #concatenate_contig_to_genome_mapping = rules.concatenate_contig_to_genome_mapping.output,
-        #concatenate_crispr_locus_coordinates = rules.concatenate_crispr_locus_coordinates.output,
+        concatenate_all_proteins_against_RN_diamond = rules.concatenate_all_proteins_against_RN_diamond.output,
+        concatenate_contig_to_genome_mapping = rules.concatenate_contig_to_genome_mapping.output,
+        concatenate_crispr_locus_coordinates = rules.concatenate_crispr_locus_coordinates.output,
         RN_hits_outside_crispr_merger = rules.RN_hits_outside_crispr_merger.output,
         concatenate_rn_locus_viz = rules.concatenate_rn_locus_viz.output,
-        concatenate_blender_hmm = rules.concatenate_blender_hmm.output,
-        concatenate_blender_analysis = rules.concatenate_blender_analysis.output,
     output: base_path + "/done"
     threads: thread_small
     shell:
@@ -4123,12 +2916,6 @@ rule final:
         cp {base_path}/13_effector_commonness/effector_commonness_master.tsv {base_path}/R
         cp {base_path}/mastertable_v2.tsv {base_path}/R
 
-        cp -r {base_path}/45_effector_tree/* {base_path}/R/effector_trees
-
-        cp -r {base_path}/43_effector_hmmer_analysis/*/*_sorted_filtered_mapped.tsv {base_path}/R/effector_hmm/pfam
-        cp -r {base_path}/42_effector_hhsuite/*/*_parsed.tsv {base_path}/R/effector_hmm/pdb
-        cp -r {base_path}/42_effector_hhsuite_cogs/*/*_parsed_cogs.tsv {base_path}/R/effector_hmm/cog
-
         mkdir -p {base_path}/RN_outside_CRISPR_maps_categorized/crisprTrue
         mkdir -p {base_path}/RN_outside_CRISPR_maps_categorized/crisprFalse
         cp -r {base_path}/RN_outside_CRISPR_maps/*/*_rn_viz_crisprTrue.png {base_path}/RN_outside_CRISPR_maps_categorized/crisprTrue
@@ -4137,9 +2924,3 @@ rule final:
         cp {base_path}/P3_hmm_analysis/phages_RN_hmm.tsv {base_path}/R
         cp {base_path}/hits_outside_crispr.tsv {base_path}/R
         '''
-        # cp {base_path}/30_unknown_effectors/unknowns_info_loci.tsv {base_path}/R
-        # cp -r {base_path}/group4/group4.CARFSAVED.info.tsv {base_path}/R/group4/carfsaved
-        # cp -r {base_path}/group4/group4.pfam.info.tsv {base_path}/R/group4/pfam
-        # cp -r {base_path}/group4/cog/group4_cog_parsed.tsv {base_path}/R/group4/cog
-        # cp -r {base_path}/group4/pdb/group4_pdb_parsed.tsv {base_path}/R/group4/pdb
-        # cp -r {base_path}/group4_prober/group4_prober_analysis.txt {base_path}/R/group4
