@@ -2318,7 +2318,7 @@ def aggregate_millard_phage_RN_analysis(wildcards):
     '''
     checkpoint_output = checkpoints.divide_millard_phages_to_folders.get(**wildcards).output[0]
     cvals = glob_wildcards(os.path.join(checkpoint_output,"{phage}/done.txt")).phage
-    return expand(base_path + "/P3_hmm_analysis/{phage}/{phage}_cATyper_results.tsv", phage=cvals)
+    return expand(base_path + "/P3_hmm_analysis/{phage}/{phage}_cATyper_results.tsv", phage=cvals) 
 
 
 checkpoint divide_millard_phages_to_folders:
