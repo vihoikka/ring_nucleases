@@ -2308,30 +2308,6 @@ rule create_html_file:
         python scripts/html_writer.py --mastertable {input.mastertable} --viz_dir_full {params.viz_dir_full} --viz_dir_relative {params.viz_dir_relative} --output_html {output.html_file}
         '''
 
-rule casR_clustering:
-    '''
-    Creating clusters of everything annotated as CasR by CCTyper.
-    Here we concatenate all CasRs, so we are not using loci-based wildcards.
-    Instead we use output from concatenate_locus_viz as an indirect signal that all CasRs have been generated
-    '''
-    input:
-        viz_done = rules.concatenate_locus_viz.output,
-    output:
-        clustered_CasR = base_path + "/casR_clustering/casR_clustered.faa",
-        concatenated_casR = base_path + "/casR_clustering/casR_concatenated.faa",
-    conda:
-        "envs/trees.yaml"
-    params:
-        casR_wildcarded = base_path + "/14_cctyper_gene_locations/*/*casR.faa",
-        cutoff = 0.4,
-        n = 2,
-    threads: thread_ultrasmall
-    shell:
-        '''
-        cat {params.casR_wildcarded} > {output.concatenated_casR}
-        cd-hit -i {output.concatenated_casR} -o {output.clustered_CasR} -c {params.cutoff} -n {params.n} -d 0 -M 16000 -T {threads}
-        '''
-
 #### Phage genomes ####
 
 
@@ -2869,17 +2845,16 @@ rule final:
         effector_commonness = rules.effector_commonness.output.effector_commonness_tsv,
         effector_scores_summary = rules.analyse_cATyper_effector_scores.output.effector_scores_summary,
         validated_effectors_scores_summary = rules.analyse_validated_new_effectors_scores.output.effector_scores_summary,
-        concatenate_effector_wilcards = rules.concatenate_effector_wildcards.output,
-        concatenate_cATyper_hmm_hhsuite = rules.concatenate_cATyper_hmm_hhsuite.output,
-        parse_hhsuite = rules.concatenate_cATyper_hmm_hhsuite.output,
-        parse_hhsuite_cogs = rules.concatenate_cATyper_hmm_hhsuite_cogs.output,
+        #concatenate_effector_wilcards = rules.concatenate_effector_wildcards.output,
+        #concatenate_cATyper_hmm_hhsuite = rules.concatenate_cATyper_hmm_hhsuite.output,
+        #parse_hhsuite = rules.concatenate_cATyper_hmm_hhsuite.output,
+        #parse_hhsuite_cogs = rules.concatenate_cATyper_hmm_hhsuite_cogs.output,
         concatenate_validated_new_effectors_analysis = rules.concatenate_validated_new_effectors_analysis.output,
         heatmap_known_validated_effectors = rules.heatmap_known_validated_effectors.output.effector_scores_summary,
         node_graph = rules.node_graph.output.edges,
         node_graph_rn = rules.node_graph_RNs.output.edges,
         concatenate_locus_viz = rules.concatenate_locus_viz.output,
         html = rules.create_html_file.output.html_file,
-        casR_cluster = rules.casR_clustering.output.clustered_CasR,
         ring_fusions = rules.ring_fusions.output.ring_fusions,
         ring_fusions_cas10 = rules.ring_nuclease_cas10_fusions.output.hmm_rows,
         ring_nucleases_fusions = rules.concatenate_ring_nuclease_fusions.output,

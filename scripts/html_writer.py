@@ -3,11 +3,11 @@ import argparse
 import os
 
 # Parse arguments
-parser = argparse.ArgumentParser(description='Generates an HTML table with hyperlinks')
-parser.add_argument('-m', '--mastertable', help='mastertable', required=True)
-parser.add_argument('-vf', '--viz_dir_full', help='viz_dir full', required=True)
-parser.add_argument('-vr', '--viz_dir_relative', help='viz_dir rel', required=True)
-parser.add_argument('-o', '--output_html', help='Output HTML file', required=True)
+parser = argparse.ArgumentParser(description="Generates an HTML table with hyperlinks")
+parser.add_argument("-m", "--mastertable", help="mastertable", required=True)
+parser.add_argument("-vf", "--viz_dir_full", help="viz_dir full", required=True)
+parser.add_argument("-vr", "--viz_dir_relative", help="viz_dir rel", required=True)
+parser.add_argument("-o", "--output_html", help="Output HTML file", required=True)
 args = parser.parse_args()
 
 # Parse arguments into variables
@@ -17,135 +17,164 @@ viz_dir_relative = args.viz_dir_relative
 output_html = args.output_html
 
 # Read .tsv file into dataframe
-mastertable = pd.read_csv(mastertable_path, sep='\t')
+mastertable = pd.read_csv(mastertable_path, sep="\t")
 
 # Add new columns with file paths to images and and CSV tables
-mastertable['Visualisation'] = viz_dir_relative + "/" + mastertable['Locus'] + '/' + mastertable['Locus'] + '_viz.png'
-mastertable['Visualisation_table_path'] = viz_dir_relative + "/" + mastertable['Locus'] + '/' + mastertable['Locus'] + '_merged.csv'
+mastertable["Visualisation"] = (
+    viz_dir_relative
+    + "/"
+    + mastertable["Locus"]
+    + "/"
+    + mastertable["Locus"]
+    + "_viz.png"
+)
+mastertable["Visualisation_table_path"] = (
+    viz_dir_relative
+    + "/"
+    + mastertable["Locus"]
+    + "/"
+    + mastertable["Locus"]
+    + "_merged.csv"
+)
 
-#tidy up the table by removing the following columns: Cas10, Cas5, Cas7, Cas10_GGDD, Cas10_GGDD_coord, Cas10_GGDD_seq, Cas10_GGDE_coord, Cas10_GGDE_seq, Cas10_HD, Cas10_HD_list, Cas10_DH, Cas10_HD_coord, Cas10_DH_coord, Cas10_coord, HD_E-value, unk_x, mem_x, locus_id, unk_y, unk01, sample
-#also remove rng, unk, val, Unnamed: 0new_eff, memnew_eff, rng_neweff, unknew_eff, valnew_eff, locusnew_eff, samplenew_eff, Unnamed: 0rn, ae1-1, ae1-2, phrogRN, proteaseRN, solosavedRN, unk01, locusrn, samplern, locusrn_fusions, rngnew_eff, rngrn, valrn
-mastertable = mastertable.drop(columns=['Cas10', 
-                                        'Cas5', 
-                                        'Cas7', 
-                                        'Cas10_GGDD', 
-                                        'Cas10_GGDD_coord', 
-                                        'Cas10_GGDD_seq', 
-                                        'Cas10_GGDE_coord', 
-                                        'Cas10_GGDE_seq', 
-                                        'Cas10_HD', 
-                                        'Cas10_HD_list', 
-                                        'Cas10_DH', 
-                                        'Cas10_HD_coord', 
-                                        'Cas10_DH_coord', 
-                                        'Cas10_coord', 
-                                        'HD_E-value', 
-                                        'unk_x', 
-                                        'mem_x', 
-                                        'locus_id', 
-                                        'unk_y', 
-                                        'ca3',
-                                        'ca4',
-                                        'ca6',
-                                        'sam-amp',
-                                        'NE_ca3',
-                                        'NE_ca4',
-                                        'NE_ca6',
-                                        'NE_sam-amp',
-                                        'cyclase_literal_x',
-                                        'tpr-chat',
-                                        'Cas10_GGED',
-                                        'Cas10_GGED_seq',
-                                        'Cas10_GGED_coord',
-                                        'HD_hmm_boolean',
-                                        'GGDD_hmm_boolean',
-                                        'GGDE_hmm_boolean',
-                                        'cas10_literal_cyclase_seq',
-                                        'fusion_components',
-                                        'fusion_protein',
-                                        'effector_count_known_new_sum',
-                                        'no_validated_new_effectors',
-                                        'rng',
-                                        'rngnew_eff',
-                                        'unk',
-                                        'val',
-                                        'Unnamed: 0new_eff',
-                                        'memnew_eff',
-                                        'rng_neweff',
-                                        'unknew_eff',
-                                        'valnew_eff',
-                                        'locusnew_eff',
-                                        'samplenew_eff',
-                                        'Unnamed: 0rn',
-                                        'ae1-1',
-                                        'ae1-2',
-                                        'phrogRN',
-                                        'proteaseRN',
-                                        'solosavedRN',
-                                        'unk01',
-                                        'locusrn',
-                                        'samplern',
-                                        'locusrn_fusions',
-                                        'rngnew_eff',
-                                        'rngrn',
-                                        'valrn'],
-                                        errors='ignore')
+# tidy up the table by removing the following columns: Cas10, Cas5, Cas7, Cas10_GGDD, Cas10_GGDD_coord, Cas10_GGDD_seq, Cas10_GGDE_coord, Cas10_GGDE_seq, Cas10_HD, Cas10_HD_list, Cas10_DH, Cas10_HD_coord, Cas10_DH_coord, Cas10_coord, HD_E-value, unk_x, mem_x, locus_id, unk_y, unk01, sample
+# also remove rng, unk, val, Unnamed: 0new_eff, memnew_eff, rng_neweff, unknew_eff, valnew_eff, locusnew_eff, samplenew_eff, Unnamed: 0rn, ae1-1, ae1-2, phrogRN, proteaseRN, solosavedRN, unk01, locusrn, samplern, locusrn_fusions, rngnew_eff, rngrn, valrn
+mastertable = mastertable.drop(
+    columns=[
+        "Cas10",
+        "Cas5",
+        "Cas7",
+        "Cas10_GGDD",
+        "Cas10_GGDD_coord",
+        "Cas10_GGDD_seq",
+        "Cas10_GGDE_coord",
+        "Cas10_GGDE_seq",
+        "Cas10_HD",
+        "Cas10_HD_list",
+        "Cas10_DH",
+        "Cas10_HD_coord",
+        "Cas10_DH_coord",
+        "Cas10_coord",
+        "HD_E-value",
+        "unk_x",
+        "mem_x",
+        "locus_id",
+        "unk_y",
+        "ca3",
+        "ca4",
+        "ca6",
+        "sam-amp",
+        "NE_ca3",
+        "NE_ca4",
+        "NE_ca6",
+        "NE_sam-amp",
+        "cyclase_literal_x",
+        "tpr-chat",
+        "Cas10_GGED",
+        "Cas10_GGED_seq",
+        "Cas10_GGED_coord",
+        "HD_hmm_boolean",
+        "GGDD_hmm_boolean",
+        "GGDE_hmm_boolean",
+        "cas10_literal_cyclase_seq",
+        "fusion_components",
+        "fusion_protein",
+        "effector_count_known_new_sum",
+        "no_validated_new_effectors",
+        "rng",
+        "rngnew_eff",
+        "unk",
+        "val",
+        "Unnamed: 0new_eff",
+        "memnew_eff",
+        "rng_neweff",
+        "unknew_eff",
+        "valnew_eff",
+        "locusnew_eff",
+        "samplenew_eff",
+        "Unnamed: 0rn",
+        "ae1-1",
+        "ae1-2",
+        "phrogRN",
+        "proteaseRN",
+        "solosavedRN",
+        "unk01",
+        "locusrn",
+        "samplern",
+        "locusrn_fusions",
+        "rngnew_eff",
+        "rngrn",
+        "valrn",
+    ],
+    errors="ignore",
+)
 
 
 # also drop Cas10_GGDE, GGDD_E-value, GGDE_E-value, ca5, no_of_unknowns, unknown_proteins, NE_ca5, val, rng, ae1, crn1, crn2, crn3, csx15, csx16, csx20, has_ring_nuclease, ring_nuclease, fusion_components, fusion_protein
-mastertable = mastertable.drop(columns=['Cas10_GGDE',
-                                        'GGDD_E-value',
-                                        'GGDE_E-value',
-                                        'con_ca5',
-                                        'ca5',
-                                        'no_of_unknowns',
-                                        'unknown_proteins',
-                                        'NE_ca5'],
-                                        errors='ignore')
+mastertable = mastertable.drop(
+    columns=[
+        "Cas10_GGDE",
+        "GGDD_E-value",
+        "GGDE_E-value",
+        "con_ca5",
+        "ca5",
+        "no_of_unknowns",
+        "unknown_proteins",
+        "NE_ca5",
+    ],
+    errors="ignore",
+)
 
-#rename column con_ca3 to ca3 and so on
-mastertable = mastertable.rename(columns={'con_ca3': 'ca3',
-                                          'con_ca4': 'ca4',
-                                          'con_ca6': 'ca6',
-                                          'con_sam-amp':'sam-amp',
-                                          'cyclase_literal_y': 'cas10_literal_cyclase_seq',
-                                          'Visualisation_table_path': "Proteome table",
-                                          'effector_count_known_new_sum': 'Total effector count'})
+# rename column con_ca3 to ca3 and so on
+mastertable = mastertable.rename(
+    columns={
+        "con_ca3": "ca3",
+        "con_ca4": "ca4",
+        "con_ca6": "ca6",
+        "con_sam-amp": "sam-amp",
+        "cyclase_literal_y": "cas10_literal_cyclase_seq",
+        "Visualisation_table_path": "Proteome table",
+        "effector_count_known_new_sum": "Total effector count",
+    }
+)
 
 
-
-#create excel
+# create excel
 mastertable_excel = mastertable.copy()
 
-#save excel to same path as html but with .xlsx extension
-excel_out = output_html.replace('.html', '.xlsx')
+# save excel to same path as html but with .xlsx extension
+excel_out = output_html.replace(".html", ".xlsx")
 mastertable_excel.to_excel(excel_out, index=False)
 
 
 # Replace path url to HTML hyperlinks
-for column in ['Proteome table']:
-     mastertable[column] = mastertable[column].apply(lambda x: f'<a href="{x}" target="_blank">Open</a>')
+for column in ["Proteome table"]:
+    mastertable[column] = mastertable[column].apply(
+        lambda x: f'<a href="{x}" target="_blank">Open</a>'
+    )
 
 # Generate imgs for the pics
 for index, row in mastertable.iterrows():
-    pic_path = os.path.join(viz_dir_relative, row['Locus'], row['Locus'] + '_viz.png')
-    #create a html script to display the image instead of its path
+    pic_path = os.path.join(viz_dir_relative, row["Locus"], row["Locus"] + "_viz.png")
+    # create a html script to display the image instead of its path
     pic_html_script = f'<img src="{pic_path}" loading="lazy">'
     mastertable.loc[index, "Visualisation"] = pic_html_script
 
-#move column "Visualisation" as first column
+# move column "Visualisation" as first column
 # Get all columns of your DataFrame in a list
 cols = list(mastertable.columns)
- 
+
 # remove "Visualisation" from the list and insert it at the front.
-cols.remove('Visualisation')
-cols.insert(0, 'Visualisation')
- 
+cols.remove("Visualisation")
+cols.insert(0, "Visualisation")
+
 # Reorder DataFrame according to this new column order.
 mastertable = mastertable[cols]
 
 # Create HTML table
-mastertable_to_html = mastertable.to_html(escape=False, index=False, classes = 'display dataTable" id = "table')
+mastertable_to_html = mastertable.to_html(
+    escape=False, index=False, classes='display dataTable" id = "table'
+)
 
 # <link href="https://cdn.datatables.net/v/dt/jq-3.7.0/jszip-3.10.1/dt-1.13.8/b-2.4.2/b-colvis-2.4.2/b-html5-2.4.2/cr-1.7.0/fh-3.4.0/rr-1.4.1/sb-1.6.0/datatables.min.css" rel="stylesheet">
 
@@ -154,8 +183,9 @@ mastertable_to_html = mastertable.to_html(escape=False, index=False, classes = '
 #        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 
 # Generate the HTML file
-with open(output_html, 'w') as file:
-    file.write(f'''
+with open(output_html, "w") as file:
+    file.write(
+        f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -248,7 +278,11 @@ with open(output_html, 'w') as file:
                                     </li>
                                     <li style="margin-bottom: 10px; display: flex; align-items: center;">
                                       <span style="display: inline-block; width: 20px; height: 20px; background-color: #EDF1F7; border: 2px solid #000; margin-right: 10px;"></span>
-                                      <span style="color: #4372B0;">Blue: Our annotations</span>
+                                      <span style="color: #4372B0;">Blue: Our effector annotations</span>
+                                    </li>
+                                    <li style="margin-bottom: 10px; display: flex; align-items: center;">
+                                      <span style="display: inline-block; width: 20px; height: 20px; background-color: #c9b51c; border: 2px solid #000; margin-right: 10px;"></span>
+                                      <span style="color: #c9b51c;">Yellow: Our ring nuclease annotations</span>
                                     </li>
                                     <li style="margin-bottom: 10px; display: flex; align-items: center;">
                                       <span style="display: inline-block; width: 20px; height: 20px; background-color: #E3E2DC; border: 2px solid #000; margin-right: 10px;"></span>
@@ -423,7 +457,8 @@ with open(output_html, 'w') as file:
   </script>
 </body>
 </html>
-    ''')
+    """
+    )
 
 
 mastertable_to_html = mastertable.to_html(escape=False, index=False, border=0)

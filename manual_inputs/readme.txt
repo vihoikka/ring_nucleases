@@ -1,1 +1,0 @@
-Some steps in this pipeline use manual inputs, e.g. accession numbers for specific proteins. This folder stores such files

@@ -3,6 +3,7 @@ scripts/*.png
 scripts/*test*
 scripts/*.tsv
 scripts/__pycache__/*
+scripts/viz/
 *.annotation
 *.plot
 *.summary

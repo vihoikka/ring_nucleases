@@ -3,8 +3,16 @@ This repo builds on top of another repo ([https://github.com/vihoikka/hoikkala_e
 This pipeline is modified towards finding ring nucleases (RNs) in type III CRISPR-Cas loci.
 It also looks at phage genomes for RNs. The instructions below assume basic understanding of Snakemake, python and shell/bash environment.
 
+## Expected runtimes and results
+* Running the pipeline from the beginning with 40 HPC cores takes around 48 hours.
+* Due to the large number of samples which are expressed as wildcards in the Snakemake pipeline, solving the DAG (the order of rules and samples to be run) takes around 20 minutes itself. Be patient!
+* The most important output file is the *mastertable_v2.tsv* in the root of the program
+* Another important location is the R folder, which is used by the accompanying *rn.R* R-script
+
+*The scripts may contain unused components*
+
 ## Requirements
-* Unix based machine (Linux, MacOS)
+* Unix based machine (tested only on Ubuntu)
 * Conda
 * Snakemake
 * Python 3
