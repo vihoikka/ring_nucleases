@@ -2314,7 +2314,7 @@ rule create_html_file:
 def aggregate_millard_phage_RN_analysis(wildcards):
     '''
     This function is used to aggregate the outputs of the millard_phage_RN_analysis rule.
-    If not working, create a checkpoint to generate wildcards first.
+    If not working, create a checkpoint to generate wildcards first. 
     '''
     checkpoint_output = checkpoints.divide_millard_phages_to_folders.get(**wildcards).output[0]
     cvals = glob_wildcards(os.path.join(checkpoint_output,"{phage}/done.txt")).phage
