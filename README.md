@@ -27,7 +27,7 @@ It also looks at phage genomes for RNs. The instructions below assume basic unde
 * Ring nuclease HMM database
 * A temperature database for prokaryotes ([TEMPURA](http://togodb.org/db/tempura))
 
-#### Databases that require custom installation
+#### Databases and software that require custom installation
 * NCBI refseq genomes of bacteria and archaea (.fna, .faa and .gff files). I recommend downloading the database using ncbi-datasets (taxon 2 for bacteria; taxon 2157 for archaea):
 ```shell
 datasets download genome taxon 2 --filename bacteria_genomes.zip --include gff3,genome,protein --dehydrated --annotated --assembly-level complete --assembly-source RefSeq
@@ -37,6 +37,7 @@ datasets rehydrate --directory .
 * Repeat the download for archaea (taxon 2157). Next, *copy* the archaeal genome folders to the bacterial folder so that they are all one big mess (*leave original archaea folders as they are*). The pipeline will use the contents of the original archaea folder and the contents of bacteria (+archaea) folder to create a file that lists the domain of each genome entry. Not too classy, but the only way I could think of how to combine all prokaryotes in the same folder without losing track of domains.
 * Millard phage database. Download the latest database from Millardlab.org. If using e.g. Sept. 2024 ([link](https://millardlab.org/bacteriophage-genomics/phage-genomes-sept-2024/)), you need the files 1Sep2024_genomes.fa, 1Sep2024_vConTACT2_proteins.faa and 1Sep2024_data.tsv.
 * TMHMM academic license (get from [https://services.healthtech.dtu.dk/cgi-bin/sw_request?software=tmhmm&version=2.0c&packageversion=2.0c&platform=Linux]). Once registered, you will receive a model file called TMHMM2.0.model. Place the file in the folder data/TMHMM.
+* The tmhmm.py program. To install this, you need to use pip to install tmhmm.py into a Snakemake-borne Conda environment. Start the pipeline and wait until the it fails when attempting to resolve transmembrane regions in the rule cATyper_analysis. In the log file of this particular failed run (path to log file is given by Snakemake), you will find a line starting with "Current environment". This is followed by a path to the Conda environment that was active during the fail (it will be a long path, ending with something similar to ```.snakemake/conda/3d49131d367f88d1bf491d10e7655d87_```). Activate this environment manually (```conda activate <path_here>```. After activating the environment, install tmhmm.py with the command ```pip install tmhmm.py```. Now, reactivate your initial conda environment which you previously ran the pipeline with and start the pipeline again. Fun isn't it?
 
 ### Other modifications
 You will need to modify multiple paths in the snakefile to make the pipeline work on your system. You will find these lines clearly marked in the beginning of snakefile rn.smk
