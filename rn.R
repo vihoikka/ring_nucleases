@@ -67,7 +67,7 @@ library("phytools")
 
 
 #### Load data ####
-project = "R" #modify this to the project name. The folder must be in the data folder (relative to current R script)
+project = "projectname" #modify this to the project name. The folder must be in the data folder (relative to current R script)
 
 #define paths
 info_path <- paste("data/",project,"/mastertable_v2.tsv", sep = "")
@@ -84,8 +84,8 @@ cas10_tree <- midpoint.root(cas10_tree)
 effectors <- read.csv(effectors, sep="\t")
 tax_info <- read.csv(tax_info_path, sep="\t") #produced by a separate rule in the Snakemake pipeline
 info <- read.csv(info_path, sep="\t")
-phage_rn <- read.csv(phage_rn, sep="\t")
 rn_outside_crispr <- read.csv(rn_outside_crispr, sep="\t")
+phage_rn <- read.csv(phage_rn, sep="\t")
 
 
 info <- subset(info, info$Cas10_length > 499) #this was previously set to 500, resulting in a mismatch between tree and info df
@@ -191,8 +191,8 @@ info_cora_csm62 <- subset(info, cora == TRUE & can3 == TRUE)
 # in info$signal_sample, fill empty cells with FALSE
 info$signal_sample <- as.logical(info$signal_sample)
 info$signal_sample[is.na(info$signal_sample)] <- FALSE
-#change all these columns to logical: can3, tirsaved, tmcarf, cramp2, cramp1, saved.chat, nucc, calpl, cami1, can12, csx1, csx23, csm6.ca6, cora
-info[,c("can3", "tirsaved", "cam1", "cam2", "cam3", "saved.chat", "nucc", "calpl", "cami1", "can1.2", "csx1", "csx23", "csm6.ca6", "cora", 'csx16', 'csx20', 'crn1', 'crn2', 'crn3', 'csx15', 'ae1.1', 'ae1.2')] <- lapply(info[,c("can3", "tirsaved", "cam1", "cam2", "cam3", "saved.chat", "nucc", "calpl", "cami1", "can1.2", "csx1", "csx23", "csm6.ca6", "cora", 'csx16', 'csx20', 'crn1', 'crn2', 'crn3', 'csx15', 'ae1.1', 'ae1.2')], as.logical)
+#change all columns to logical
+info[,c("can3", "tirsaved", "cam1", "cam2", "cam3", "saved.chat", "nucc", "calpl", "cami1", "can1.2", "csx1", "csx23", "csm6.ca6", "cora", 'csx16', 'csx20', 'crn1', 'crn2', 'crn3', 'csx15')] <- lapply(info[,c("can3", "tirsaved", "cam1", "cam2", "cam3", "saved.chat", "nucc", "calpl", "cami1", "can1.2", "csx1", "csx23", "csm6.ca6", "cora", 'csx16', 'csx20', 'crn1', 'crn2', 'crn3', 'csx15')], as.logical)
 #same for con_ca3, con_ca4, con_ca6, con_sam_amp
 info[,c("con_ca3", "con_ca4", "con_ca6", "con_sam.amp")] <- lapply(info[,c("con_ca3", "con_ca4", "con_ca6", "con_sam.amp")], as.logical)
 
@@ -490,53 +490,7 @@ ggsave(plot_path, plot = phage_rn_plot, width = 4, height = 4, bg = "white")
 phages_with_RNs <- subset(phage_rn, RN == TRUE)
 nrow(phages_with_RNs)
 
-#### 3. SPACER INTERACTIONS ####
-
-#load data
-spacer_interactions <- read.csv(paste("data/",project,"/phage_host_initial_merge.tsv", sep = ""), sep = "\t")
-
-#convert to logical columns ca3_host and ca4_host
-spacer_interactions$ca3_host <- as.logical(spacer_interactions$ca3_host)
-spacer_interactions$ca4_host <- as.logical(spacer_interactions$ca4_host)
-spacer_interactions$ca6_host <- as.logical(spacer_interactions$ca6_host)
-spacer_interactions$sam.amp_host <- as.logical(spacer_interactions$sam.amp_host)
-
-data(mtcars)
-corr <- round(cor(spacer_interactions), 1)
-
-
-#subset by ca3_host
-spacer_interactions <- subset(spacer_interactions, sam.amp_host == TRUE)
-spacer_interactions <- subset(spacer_interactions, ca3_host == TRUE)
-spacer_interactions <- subset(spacer_interactions, ca4_host == TRUE)
-
-
-heatmap <- ggplot(spacer_interactions, aes(x = Subject_id, y = host)) +
-  geom_tile(color = "white") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(x = "Phage", y = "Bacterium", fill = "Interaction")
-
-#save heatmap as png
-ggsave("data/130524/plots/spacer_interactions.png", plot = heatmap, width = 30, height = 15, units = "in", dpi = 1000, bg = "white")
-
-# visualise which bacteria have most phages targeted
-phage_targeted_bacteria <- spacer_interactions %>%
-  group_by(host) %>%
-  summarise(count = n()) %>%
-  arrange(desc(count))
-
-#plot
-phage_targeted_bacteria_plot <- ggplot(phage_targeted_bacteria, aes(x = reorder(host, -count), y = count)) +
-  geom_bar(stat = "identity") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(x = "Bacterium", y = "Count")
-
-#save
-ggsave("data/130524/plots/phage_targeted_bacteria.png", plot = phage_targeted_bacteria_plot, width = 6, height = 6, units = "in", dpi = 300, bg = "white")
-
-#### 4. CAS10-cOA-RN TREE ####
+#### 4. Fig 2: CAS10-cOA-RN TREE ####
 
 RNs <- c("crn1", "crn2", "crn3", "csx15", "csx16", "csx20")
 RN_colors <- c("#388dd1", "#1561a3", "#123675", "#091848", "#091848", "#091848")
@@ -578,8 +532,8 @@ pX <- pX  + theme(legend.position=c(0.95, 0.5),
 pX <- pX + new_scale_fill()
 pX <- gheatmap(pX, info[c("locus_signal")], offset=0, width=lane_width, colnames = TRUE,
                colnames_angle=85, colnames_offset_y = 0, font.size = label_fontsize, color = "grey",
-               hjust = 1, legend_title = signals[i]) +
-              scale_fill_manual(values = associated_colors_signals, name = "Signal")
+               hjust = 1, legend_title = "Signal", custom_column_labels = c("Signal")) +
+              scale_fill_manual(values = associated_colors_signals, name = "Signal", labels = c("cA3", "cA4", "cA6", "None", "SAM-AMP"))
 
 # Iterate over each ring nuclease
 for(i in 1:length(RNs)){
@@ -678,6 +632,37 @@ total_locus_count_rn <- nrow(subset(info, has_ring_nuclease == TRUE))
 #percentage of loci with rn
 percentage_locus_count_rn <- total_locus_count_rn / total_locus_count * 100
 
+#number of loci with crn1
+locus_with_crn1 <- subset(info, crn1 == TRUE)
+nrow(locus_with_crn1)
+
+#number of loci with crn2
+locus_with_crn2 <- subset(info, crn2 == TRUE)
+nrow(locus_with_crn2)
+
+#number of loci with crn3
+locus_with_crn3 <- subset(info, crn3 == TRUE)
+nrow(locus_with_crn3)
+
+#number of loci with csx15
+locus_with_csx15 <- subset(info, csx15 == TRUE)
+nrow(locus_with_csx15)
+
+#number of loci with csx16
+locus_with_csx16 <- subset(info, csx16 == TRUE)
+nrow(locus_with_csx16)
+
+#number of loci with csx20
+locus_with_csx20 <- subset(info, csx20 == TRUE)
+nrow(locus_with_csx20)
+
+#number of loci with Crn1 and Csx15
+locus_with_crn1_and_csx15 <- subset(info, crn1 == TRUE & csx15 == TRUE)
+nrow(locus_with_crn1_and_csx15)
+
+#create a table that shows counts for all RNs
+rn_table <- data.frame(RN = c("Crn1", "Crn2", "Crn3", "Csx15", "Csx16", "Csx20"), Count = c(nrow(locus_with_crn1), nrow(locus_with_crn2), nrow(locus_with_crn3), nrow(locus_with_csx15), nrow(locus_with_csx16), nrow(locus_with_csx20)))
+
 #create dataframe that contains percentages for having and not having RN
 locus_count_df <- data.frame(Feature = c("RN", "No RN"), Count = c(total_locus_count_rn, total_locus_count - total_locus_count_rn), Percentage = c(percentage_locus_count_rn, 100 - percentage_locus_count_rn))
 
@@ -701,9 +686,15 @@ percentage_locus_with_rn_no_effector_elsewhere <- nrow(locus_with_rn_no_effector
 
 #loci with effectors
 locus_with_effector <- subset(info, effector_count_known_new_sum > 0)
+nrow(locus_with_effector)
 
 #loci with effectors that have also RN
 locus_with_effector_and_rn <- subset(locus_with_effector, has_ring_nuclease == TRUE)
+nrow(locus_with_effector_and_rn)
+
+#how many loci with effectors and rns have an effector elsewhere in the genome
+locus_with_effector_and_rn_elsewhere <- subset(locus_with_effector_and_rn, effector_elsewhere_in_sample == TRUE)
+nrow(locus_with_effector_and_rn_elsewhere)
 
 #numbers and percentages of loci that have effectors and associated RNs
 locus_with_effector_count <- nrow(locus_with_effector)
@@ -716,7 +707,7 @@ locus_with_ca4_count <- nrow(locus_with_cA4)
 
 #loci with cA4 effectors that have also RN
 locus_with_cA4_and_rn <- subset(locus_with_cA4, has_ring_nuclease == TRUE)
-
+nrow(locus_with_cA4_and_rn)
 #numbers and percentages of loci that have cA4 effectors and associated RNs
 locus_with_cA4_and_rn_count <- nrow(locus_with_cA4_and_rn)
 percentage_locus_with_cA4_and_rn <- locus_with_cA4_and_rn_count / locus_with_ca4_count * 100
@@ -842,7 +833,7 @@ effectors_table$with_rn_string <- paste(effectors_table$with_rn, "/", effectors_
 effectors_table_plot <- ggplot(effectors_table, aes(y = reorder(Effectors, RN_proportion), x = RN_proportion)) +
   geom_lollipop(horizontal = TRUE, point.colour = "#e74c3c", point.size = 4, line.size = 1.2, line.colour = "#2c3e50") +
   #also display counts next to lollipop
-  geom_text(aes(label = with_rn_string), hjust = -0.6, size = 3) +
+  #geom_text(aes(label = with_rn_string), hjust = -0.6, size = 3) +
   labs(
     #title = "Proportion of effectors with no RN",
     x = "Associated RN proportion",
@@ -887,6 +878,19 @@ no_effector_has_rn_and_effector_elsewhere_count
 effector_has_rn <- subset(info, has_known_effector == TRUE & has_ring_nuclease == TRUE)
 effector_has_rn_count <- nrow(effector_has_rn)
 effector_has_rn_count
+
+#get all effector_has_rn that have multilocus sample
+effector_has_rn_multilocus <- subset(effector_has_rn, multilocus_sample == "True")
+
+#find entries info whose Sample column matches the Sample column in effector_has_rn_multilocus
+effector_has_rn_multilocus_info <- subset(info, Sample %in% effector_has_rn_multilocus$Sample)
+
+#from effector_has_rn_multilocus_info remove all entries whose Locus matches those in effector_has_rn_multilocus
+effector_has_rn_multilocus_info_no_effector <- subset(effector_has_rn_multilocus_info, !(Locus %in% effector_has_rn_multilocus$Locus))
+
+#then remove entries where there is no effector present (effector_count_known_new_sum == 0)
+effector_has_rn_multilocus_info_no_effector_no_effector <- subset(effector_has_rn_multilocus_info_no_effector, effector_count_known_new_sum == 0)
+nrow(effector_has_rn_multilocus_info_no_effector_no_effector)
 
 effector_has_rn_and_effector_elsewhere <- subset(effector_has_rn, effector_elsewhere_in_sample_but_not_here == TRUE)
 effector_has_rn_and_effector_elsewhere_count <- nrow(effector_has_rn_and_effector_elsewhere)
@@ -975,3 +979,4 @@ nrow(type_iii_d)
 
 #create a .txt file of the column Locus with each locus on a new line in current project
 write.table(type_iii_d$sample, file = paste("data/",project,"/type_iii_d_loci.txt", sep = ""), quote = FALSE, row.names = FALSE, col.names = FALSE)
+
