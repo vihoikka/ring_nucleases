@@ -47,6 +47,10 @@ parser.add_argument(
 parser.add_argument(
     "-tm", "--tmhmm_model_path", help="tmhmm model path", required=False
 )
+# optional argument false_positives_RNs
+parser.add_argument(
+    "-fp", "--false_positives_RNs", help="false positives RNs", required=False
+)
 
 args = parser.parse_args()
 
@@ -66,6 +70,12 @@ catyper_type = args.catyper_type
 effector_plot_data = args.effector_plot_data
 ring_nuclease = args.ring_nuclease
 tmhmm_model_path = args.tmhmm_model_path
+
+if args.false_positives_RNs is not None:
+    false_positives_RNs = args.false_positives_RNs
+    # read the newline separated text file into list
+    with open(false_positives_RNs) as f:
+        false_positives_RNs_list = f.read().splitlines()  # list of false positive RNs
 
 # when looking for effectors in the locus, the effector search range is the number of bases up or downstream of the cctyper defined cas operon boundaries
 effector_search_range = 6000
@@ -349,6 +359,16 @@ if mode == "post_hmm":
         protein_id = row["query_name"]  # returns the protein id
         clade = "noCladeInfo"  # clade is used to differentiate between different clades of the same protein (some HMM profiles consist of multiple clades). Currently used with some potential new ring nucleases.
         # check if the hmm result contains the word 'icity'. This refers to CorA and is a remnant from the HMM profile fil
+
+        # if protein_id is in the false positives list, skip the iteration of the loop
+        if args.false_positives_RNs is not None:
+            if protein_id in false_positives_RNs_list:
+                print(
+                    "...Skipping protein "
+                    + protein_id
+                    + " as it is a known false positive"
+                )
+                continue
 
         if (
             "_" in row["target_name"]

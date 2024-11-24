@@ -50,6 +50,7 @@ TM_path = "data/TMHMM"
 validated_effectors_hmm_db = "data/effectors_hmm_new/all.hmm"
 ring_nuclease_db = "data/rn_hmm/all.hmm"
 temperature_data = "data/temperature/200617_TEMPURA.csv"
+list_of_false_positive_RNs = "data/list_of_false_positive_RNs.txt" #a manually curated list of false positive hits against RNs. These hits are removed in the rule ring_nucleases_analysis
 
 # Define paths depending on whether Cas10 is used as an anchor
 if cas10_anchor == False:
@@ -836,7 +837,7 @@ rule cATyper_analysis:
     input:
         crispr_positive_samples = base_path + "/071_cctyper_loci/{c}/cas_operons.tsv",
         contig_proteins = base_path + "/10_cATyper_hmm/{c}/{c}_contig_proteins.faa",
-        hmm_rows = base_path + "/10_cATyper_hmm/{c}/{c}_cATyper_hmm_rows.tsv",
+        hmm_rows = base_path + "/10_cATyper_hmm/{c}/{c}_cATyper_hmm_rows.tsv"
     output:
         catyper = base_path + "/11_cATyper_analysis/{c}/{c}_cATyper_results.tsv",
         hmm_targets = base_path + "/11_cATyper_analysis/{c}/{c}_cATyper_hmm_targets.tsv",
@@ -1757,7 +1758,8 @@ rule ring_nucleases_analysis:
     params:
         outdir = base_path + "/71_ring_nucleases_analysis/{c}",
         host_genomes_folder = base_path + "/06_host_genomes",
-        hmm_msa_folder = ring_nuclease_folder + "/profiles",
+        hmm_msa_folder = ring_nuclease_folder + "/rn_hmm_individual_profiles",
+        list_of_false_positives = list_of_false_positive_RNs
     conda: "envs/hmmer.yaml"
     log:
         out = base_path + "/71_ring_nucleases_analysis/logs/{c}.out",
@@ -1768,7 +1770,7 @@ rule ring_nucleases_analysis:
         echo "Running validated effector analysis" >> {log.out}
         echo "Listing targets" >> {log.out}
         ls {params.hmm_msa_folder}/*/*.hmm > {output.hmm_targets}
-        python scripts/catyper_prepper_10.py --locus {wildcards.c} --cas_operons_file {input.crispr_positive_samples} --output_folder {params.outdir} --host_genomes_folder {params.host_genomes_folder} --mode post_hmm --hmm_targets {output.hmm_targets} --hmm_rows {input.hmm_rows} --catyper_out {output.catyper} --catyper_type "ring_nucleases" --effector_plot_data {output.plottable_effector_positions} --ring_nuclease True 2> {log.err} 1> {log.out}
+        python scripts/catyper_prepper_10.py --locus {wildcards.c} --cas_operons_file {input.crispr_positive_samples} --output_folder {params.outdir} --host_genomes_folder {params.host_genomes_folder} --mode post_hmm --hmm_targets {output.hmm_targets} --hmm_rows {input.hmm_rows} --catyper_out {output.catyper} --catyper_type "ring_nucleases" --effector_plot_data {output.plottable_effector_positions} --ring_nuclease True --false_positives_RNs {params.list_of_false_positives} 2> {log.err} 1> {log.out}
         '''
 
 rule concatenate_ring_nucleases_analysis:
@@ -2084,25 +2086,6 @@ rule mastercombiner:
         subtype_corrections = {
             # NOTE these may change from run to run as crispr locus numbers are arbitrary and stochastic.
             # Any rerun of CCTyper will null these corrections and they need to be rechecked
-            # "GCA_003201765.2_3": "III-D",
-            # "GCF_003201765.2_2": "III-D",
-            # "GCA_022845955.1_1": "III-D",
-            # "GCA_001548075.1_0": "III-D",
-             "GCF_014495845.1_1": "III-D",
-            # "GCA_000143965.1_0": "III-D",
-            # "GCA_000010725.1_0": "III-D",
-             "GCF_019900845.1_1": "III-D",
-            # "GCF_000227745.2_1": "III-B",
-            # "GCA_000970265.1_31": "III-F",
-            # "GCF_000022425.1_4": "III-F",
-            # "GCF_000022405.1_3": "III-F",
-            # "GCF_009602405.1_0": "III-F",
-            # "GCA_003201675.2_2": "III-F",
-            # "GCF_003201675.2_3": "III-F",
-            # "GCF_028472365.1_2": "III-F",
-            # "GCA_000338775.1_1": "III-F",
-            # "GCA_000011205.1_3": "III-F",
-            # "GCA_003967175.1_0": "III-F",
             
             # added 13.8.2024
             "GCF_000022425.1_4": "III-B",
@@ -2429,7 +2412,7 @@ rule millard_phage_RN_analysis:
         plottable_effector_positions = base_path + "/P3_hmm_analysis/{phage}/{phage}_plottable_effector_positions.tsv",
     params:
         outdir = base_path + "/P3_hmm_analysis/{phage}",
-        hmm_msa_folder = ring_nuclease_folder + "/profiles"
+        hmm_msa_folder = ring_nuclease_folder + "/rn_hmm_individual_profiles"
     conda: "envs/hmmer.yaml"
     threads: thread_ultrasmall
     log:
